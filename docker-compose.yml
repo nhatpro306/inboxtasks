@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: inboxtasks-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: inboxtasks
+      POSTGRES_PASSWORD: inboxtasks
+      POSTGRES_DB: inboxtasks
+    ports:
+      - "5432:5432"
+    volumes:
+      - inboxtasks_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inboxtasks"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  inboxtasks_pgdata:

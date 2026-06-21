@@ -1,0 +1,166 @@
+// InboxTasks Prisma schema. Single-user app; every row still carries user_id per spec.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Priority {
+  low
+  medium
+  high
+}
+
+enum TaskStatus {
+  suggested
+  accepted
+  in_progress
+  done
+  dismissed
+}
+
+enum CreatedVia {
+  ai
+  manual
+  chat
+}
+
+enum AuthType {
+  app_password
+  xoauth2
+}
+
+enum AiProviderPref {
+  auto
+  local
+  gemini
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  emailAccounts EmailAccount[]
+  emails        Email[]
+  tasks         Task[]
+  chatMessages  ChatMessage[]
+  settings      Settings?
+
+  @@map("users")
+}
+
+model EmailAccount {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  imapHost     String   @map("imap_host")
+  imapPort     Int      @default(993) @map("imap_port")
+  emailAddress String   @map("email_address")
+  authType     AuthType @default(app_password) @map("auth_type")
+  secretRef    String   @map("secret_ref")
+  lastSeenUid  Int      @default(0) @map("last_seen_uid")
+  lastSyncedAt DateTime? @map("last_synced_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails Email[]
+
+  @@index([userId])
+  @@map("email_accounts")
+}
+
+model Email {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  accountId    String   @map("account_id")
+  messageId    String   @map("message_id")
+  fromAddress  String   @map("from_address")
+  subject      String?
+  receivedAt   DateTime @map("received_at")
+  cleanSnippet String   @map("clean_snippet") @db.Text
+  processedAt  DateTime? @map("processed_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@unique([accountId, messageId])
+  @@index([userId])
+  @@map("emails")
+}
+
+model Task {
+  id            String     @id @default(uuid())
+  userId        String     @map("user_id")
+  sourceEmailId String?    @map("source_email_id")
+  title         String
+  description   String?    @db.Text
+  dueDate       DateTime?  @map("due_date")
+  priority      Priority   @default(medium)
+  status        TaskStatus @default(suggested)
+  createdVia    CreatedVia @default(manual) @map("created_via")
+  aiConfidence  Float?     @map("ai_confidence")
+  deletedAt     DateTime?  @map("deleted_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceEmail   Email?         @relation(fields: [sourceEmailId], references: [id], onDelete: SetNull)
+  calendarLinks CalendarLink[]
+
+  @@index([userId, status])
+  @@index([userId, dueDate])
+  @@map("tasks")
+}
+
+model CalendarLink {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  taskId          String   @map("task_id")
+  provider        String
+  externalEventId String   @map("external_event_id")
+  etag            String?
+  lastSyncedAt    DateTime? @map("last_synced_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskId])
+  @@map("calendar_links")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("chat_messages")
+}
+
+model Settings {
+  id                 String         @id @default(uuid())
+  userId             String         @unique @map("user_id")
+  aiProviderPref     AiProviderPref @default(auto) @map("ai_provider_pref")
+  ollamaUrl          String         @default("http://localhost:11434") @map("ollama_url")
+  geminiKeyRef       String?        @map("gemini_key_ref")
+  pollIntervalMinutes Int           @default(60) @map("poll_interval_minutes")
+  calendarProvider   String?        @map("calendar_provider")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
+}

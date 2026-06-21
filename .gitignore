@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+.DS_Store
+coverage/
+.vite/
+db/migrations/**/migration_lock.toml
+!db/migrations/migration_lock.toml
+apps/web/dev-dist/
