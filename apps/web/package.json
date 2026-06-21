@@ -10,8 +10,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fullcalendar/core": "6.1.15",
+    "@fullcalendar/daygrid": "6.1.15",
+    "@fullcalendar/interaction": "6.1.15",
+    "@fullcalendar/react": "6.1.15",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "react-router-dom": "6.28.0"
   },
   "devDependencies": {
     "@types/react": "18.3.12",
@@ -22,6 +27,7 @@
     "tailwindcss": "3.4.15",
     "typescript": "5.6.3",
     "vite": "5.4.11",
-    "vite-plugin-pwa": "0.21.0"
+    "vite-plugin-pwa": "0.21.0",
+    "workbox-precaching": "7.3.0"
   }
 }
