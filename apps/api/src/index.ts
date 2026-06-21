@@ -4,6 +4,10 @@ import cors from "@fastify/cors";
 import { env } from "./env.js";
 import { ensureUser } from "@inboxtasks/db";
 import { accountRoutes } from "./routes/accounts.js";
+import { taskRoutes } from "./routes/tasks.js";
+import { settingsRoutes } from "./routes/settings.js";
+import { pushRoutes } from "./routes/push.js";
+import { calendarRoutes } from "./routes/calendar.js";
 
 const app = Fastify({ logger: true });
 
@@ -27,6 +31,10 @@ app.get("/health", async () => ({
 }));
 
 await app.register(accountRoutes);
+await app.register(taskRoutes);
+await app.register(settingsRoutes);
+await app.register(pushRoutes);
+await app.register(calendarRoutes);
 
 // Make sure the single user + settings exist before serving.
 await ensureUser();

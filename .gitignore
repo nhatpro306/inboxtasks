@@ -10,3 +10,5 @@ coverage/
 db/migrations/**/migration_lock.toml
 !db/migrations/migration_lock.toml
 apps/web/dev-dist/
+
+.serena/

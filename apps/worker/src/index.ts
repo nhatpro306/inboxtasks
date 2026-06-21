@@ -2,17 +2,11 @@ import { config } from "dotenv";
 import { resolve } from "node:path";
 import cron from "node-cron";
 import { ensureUser } from "@inboxtasks/db";
-import { ingestAllAccounts } from "./ingest.js";
-import { processUnprocessedEmails } from "./extract.js";
+import { runCycle } from "@inboxtasks/pipeline";
 
 config({ path: resolve(import.meta.dirname, "../../../.env") });
 
 const intervalMinutes = Number(process.env.POLL_INTERVAL_MINUTES ?? 60);
-
-async function runCycle(): Promise<void> {
-  await ingestAllAccounts();
-  await processUnprocessedEmails();
-}
 
 async function main(): Promise<void> {
   await ensureUser();

@@ -1,0 +1,12 @@
+{
+  "name": "@inboxtasks/pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" } },
+  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit" },
+  "dependencies": { "@inboxtasks/db": "*", "@inboxtasks/llm": "*", "@inboxtasks/shared": "*", "imapflow": "1.0.171", "mailparser": "3.7.1", "web-push": "3.6.7" },
+  "devDependencies": { "@types/mailparser": "3.4.5", "@types/node": "22.9.0", "@types/web-push": "3.6.4", "typescript": "5.6.3" }
+}
