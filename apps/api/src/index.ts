@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import helmet from "@fastify/helmet";
 import cors from "@fastify/cors";
 import { env } from "./env.js";
+import { ensureUser } from "@inboxtasks/db";
+import { accountRoutes } from "./routes/accounts.js";
 
 const app = Fastify({ logger: true });
 
@@ -23,6 +25,11 @@ app.get("/health", async () => ({
   service: "inboxtasks-api",
   time: new Date().toISOString(),
 }));
+
+await app.register(accountRoutes);
+
+// Make sure the single user + settings exist before serving.
+await ensureUser();
 
 try {
   await app.listen({ port: env.port, host: env.host });
