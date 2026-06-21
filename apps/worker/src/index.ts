@@ -3,20 +3,25 @@ import { resolve } from "node:path";
 import cron from "node-cron";
 import { ensureUser } from "@inboxtasks/db";
 import { ingestAllAccounts } from "./ingest.js";
+import { processUnprocessedEmails } from "./extract.js";
 
 config({ path: resolve(import.meta.dirname, "../../../.env") });
 
 const intervalMinutes = Number(process.env.POLL_INTERVAL_MINUTES ?? 60);
+
+async function runCycle(): Promise<void> {
+  await ingestAllAccounts();
+  await processUnprocessedEmails();
+}
 
 async function main(): Promise<void> {
   await ensureUser();
   const expr = `*/${Math.max(1, Math.min(59, intervalMinutes))} * * * *`;
   console.log(`[worker] starting; polling every ${intervalMinutes} min (cron: ${expr})`);
   cron.schedule(expr, () => {
-    void ingestAllAccounts();
+    void runCycle();
   });
-  // Run once at boot so a backlog (PC was off) is processed immediately.
-  void ingestAllAccounts();
+  void runCycle();
 }
 
 main().catch((err) => {

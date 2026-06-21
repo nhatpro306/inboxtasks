@@ -13,6 +13,7 @@
   "dependencies": {
     "@inboxtasks/shared": "*",
     "@inboxtasks/db": "*",
+    "@inboxtasks/llm": "*",
     "dotenv": "16.4.5",
     "imapflow": "1.0.171",
     "mailparser": "3.7.1",
