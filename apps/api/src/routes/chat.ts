@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, ensureUser, decryptSecret } from "@inboxtasks/db";
+import { prisma, ensureUser, decryptSecret, writeAudit } from "@inboxtasks/db";
 import { chatWithActions, type LLMConfig } from "@inboxtasks/llm";
 import { proposedActionSchema } from "@inboxtasks/shared";
 import { serializeTask } from "../lib/serialize.js";
@@ -149,6 +149,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const confirmMsg = `✓ Task "${task.title}" created.`;
       await prisma.chatMessage.create({ data: { userId, role: "assistant", content: confirmMsg } });
 
+      void writeAudit({
+        userId,
+        action: `chat.${action.type}`,
+        targetType: "task",
+        targetId: task.id,
+      });
+
       return { ok: true, task: serializeTask(task) };
     }
 
@@ -181,6 +188,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const confirmMsg = `✓ Task "${task.title}" updated.`;
       await prisma.chatMessage.create({ data: { userId, role: "assistant", content: confirmMsg } });
 
+      void writeAudit({
+        userId,
+        action: `chat.${action.type}`,
+        targetType: "task",
+        targetId: task.id,
+      });
+
       return { ok: true, task: serializeTask(task) };
     }
 
@@ -200,6 +214,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
 
       const confirmMsg = `✓ Task "${task.title}" marked complete.`;
       await prisma.chatMessage.create({ data: { userId, role: "assistant", content: confirmMsg } });
+
+      void writeAudit({
+        userId,
+        action: `chat.${action.type}`,
+        targetType: "task",
+        targetId: task.id,
+      });
 
       return { ok: true, task: serializeTask(task) };
     }

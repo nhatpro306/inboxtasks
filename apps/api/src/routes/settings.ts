@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, ensureUser, encryptSecret, decryptSecret } from "@inboxtasks/db";
+import { prisma, ensureUser, encryptSecret, decryptSecret, writeAudit } from "@inboxtasks/db";
 import { maskSecret } from "@inboxtasks/shared";
 
 function maskGeminiKey(settings: {
@@ -58,7 +58,9 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     if (b.ollama_url !== undefined) updateData.ollamaUrl = b.ollama_url;
     if (b.poll_interval_minutes !== undefined) updateData.pollIntervalMinutes = b.poll_interval_minutes;
     if (b.reminder_lead_minutes !== undefined) updateData.reminderLeadMinutes = b.reminder_lead_minutes;
+    let geminiKeyChanged = false;
     if (b.gemini_key !== undefined) {
+      geminiKeyChanged = true;
       if (b.gemini_key === "") {
         updateData.geminiKeyRef = null;
       } else {
@@ -67,6 +69,16 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     }
 
     await prisma.settings.update({ where: { userId }, data: updateData });
+
+    if (geminiKeyChanged) {
+      // NEVER log the key value in meta
+      void writeAudit({
+        userId,
+        action: "settings.gemini_key_changed",
+        targetType: "settings",
+        meta: { cleared: b.gemini_key === "" },
+      });
+    }
 
     return publicSettings(userId);
   });

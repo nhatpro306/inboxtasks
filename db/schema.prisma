@@ -51,8 +51,24 @@ model User {
   chatMessages      ChatMessage[]
   settings          Settings?
   pushSubscriptions PushSubscription[]
+  auditLogs         AuditLog[]
 
   @@map("users")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String
+  targetType String   @map("target_type")
+  targetId   String?  @map("target_id")
+  meta       String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
 }
 
 model EmailAccount {

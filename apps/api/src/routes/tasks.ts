@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, ensureUser } from "@inboxtasks/db";
+import { prisma, ensureUser, writeAudit } from "@inboxtasks/db";
 import { serializeTask } from "../lib/serialize.js";
 import * as google from "../lib/google.js";
 import { runCycle } from "@inboxtasks/pipeline";
@@ -213,6 +213,13 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
     await prisma.task.update({
       where: { id: params.data.id },
       data: { deletedAt: new Date() },
+    });
+
+    void writeAudit({
+      userId,
+      action: "task.delete",
+      targetType: "task",
+      targetId: params.data.id,
     });
 
     return { deleted: true };

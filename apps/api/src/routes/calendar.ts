@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, ensureUser } from "@inboxtasks/db";
+import { prisma, ensureUser, writeAudit } from "@inboxtasks/db";
 import * as google from "../lib/google.js";
 
 export async function calendarRoutes(app: FastifyInstance): Promise<void> {
@@ -22,6 +22,13 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
 
     const userId = await ensureUser();
     await google.handleCallback(userId, parsed.data.code);
+
+    void writeAudit({
+      userId,
+      action: "calendar.connect",
+      targetType: "settings",
+      meta: { provider: "google" },
+    });
 
     const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
     return reply.redirect(`${webOrigin}/settings?calendar=connected`, 302);

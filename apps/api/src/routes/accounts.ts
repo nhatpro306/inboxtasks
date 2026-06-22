@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, encryptSecret, ensureUser } from "@inboxtasks/db";
+import { prisma, encryptSecret, ensureUser, writeAudit } from "@inboxtasks/db";
 
 const createAccountSchema = z.object({
   email_address: z.string().email(),
@@ -61,11 +61,18 @@ export async function accountRoutes(app: FastifyInstance): Promise<void> {
   app.delete("/api/accounts/:id", async (req, reply) => {
     const params = z.object({ id: z.string().uuid() }).safeParse(req.params);
     if (!params.success) return reply.code(400).send({ error: "invalid_id" });
+    const userId = await ensureUser();
     try {
       await prisma.emailAccount.delete({ where: { id: params.data.id } });
     } catch {
       return reply.code(404).send({ error: "not_found" });
     }
+    void writeAudit({
+      userId,
+      action: "account.delete",
+      targetType: "email_account",
+      targetId: params.data.id,
+    });
     return reply.code(204).send();
   });
 }
