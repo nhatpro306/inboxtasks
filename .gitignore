@@ -12,3 +12,5 @@ db/migrations/**/migration_lock.toml
 apps/web/dev-dist/
 
 .serena/
+playwright-report/
+test-results/
