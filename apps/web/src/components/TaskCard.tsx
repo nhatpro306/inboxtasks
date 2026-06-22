@@ -17,8 +17,12 @@ export function TaskCard({ task, onToggleDone, onClick }: Props) {
       className="bg-card rounded-card shadow-card border border-border p-4 flex gap-3 cursor-pointer hover:shadow-md transition-shadow"
       onClick={() => onClick?.(task)}
     >
-      {/* Checkbox */}
+      {/* Checkbox — real toggle button with role="checkbox" */}
       <button
+        type="button"
+        role="checkbox"
+        aria-checked={done}
+        aria-label={`Mark "${task.title}" ${done ? "not done" : "done"}`}
         className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors mt-0.5 ${
           done
             ? "bg-accent border-accent"
@@ -28,10 +32,15 @@ export function TaskCard({ task, onToggleDone, onClick }: Props) {
           e.stopPropagation();
           onToggleDone(task);
         }}
-        aria-label={done ? "Mark incomplete" : "Mark done"}
       >
         {done && (
-          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 12 12">
+          <svg
+            aria-hidden="true"
+            focusable="false"
+            className="w-3 h-3 text-white"
+            fill="none"
+            viewBox="0 0 12 12"
+          >
             <path
               d="M2 6l3 3 5-5"
               stroke="currentColor"

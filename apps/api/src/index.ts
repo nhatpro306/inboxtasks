@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import type { FastifyError } from "fastify";
 import helmet from "@fastify/helmet";
 import cors from "@fastify/cors";
 import { env } from "./env.js";
@@ -33,7 +34,7 @@ const app = Fastify({
 });
 
 // ── Generic error handler: never leak stack traces / messages for 500s ────────
-app.setErrorHandler((error, request, reply) => {
+app.setErrorHandler((error: FastifyError, request, reply) => {
   const requestId = request.id;
   if (error.statusCode && error.statusCode < 500) {
     // Pass through 4xx validation errors already sent by routes

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, Settings as ISettings, Account } from "../lib/api.js";
 import { Segmented } from "../components/Segmented.js";
+import { Toast } from "../components/Toast.js";
 import { enablePush, disablePush } from "../lib/push.js";
 import { fmtDate } from "../lib/format.js";
 
@@ -9,6 +10,7 @@ export function Settings() {
   const [settings, setSettings] = useState<ISettings | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
 
@@ -35,17 +37,16 @@ export function Settings() {
   // Calendar sync
   const [syncing, setSyncing] = useState(false);
 
+  function showToast(msg: string) {
+    setToast(msg);
+  }
+
   useEffect(() => {
     if (searchParams.get("calendar") === "connected") {
       showToast("Google Calendar connected successfully!");
     }
     void Promise.all([loadSettings(), loadAccounts()]);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 4000);
-  }
 
   async function loadSettings() {
     try {
@@ -54,7 +55,7 @@ export function Settings() {
       setPollMin(String(s.poll_interval_minutes));
       setReminderMin(String(s.reminder_lead_minutes));
     } catch {
-      // ignore
+      setError("Failed to load settings. Check that the API is running.");
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ export function Settings() {
       const data = await api.listAccounts();
       setAccounts(data);
     } catch {
-      // ignore
+      // ignore — account list failure is non-critical
     }
   }
 
@@ -76,7 +77,7 @@ export function Settings() {
       setSettings(updated);
       showToast("AI provider updated.");
     } catch {
-      // ignore
+      showToast("Failed to update AI provider.");
     }
   }
 
@@ -90,7 +91,7 @@ export function Settings() {
       setGeminiKey("");
       showToast("Gemini key saved.");
     } catch {
-      // ignore
+      showToast("Failed to save Gemini key.");
     } finally {
       setSavingGemini(false);
     }
@@ -107,7 +108,7 @@ export function Settings() {
       setSettings(updated);
       showToast("Scan settings saved.");
     } catch {
-      // ignore
+      showToast("Failed to save scan settings.");
     } finally {
       setSavingPoll(false);
     }
@@ -133,7 +134,7 @@ export function Settings() {
         }
       }
     } catch {
-      // ignore
+      showToast("Failed to toggle notifications.");
     } finally {
       setTogglingPush(false);
     }
@@ -144,7 +145,7 @@ export function Settings() {
       const res = await api.calendarConnect();
       window.location.href = res.url;
     } catch {
-      // ignore
+      showToast("Failed to initiate calendar connection.");
     }
   }
 
@@ -154,7 +155,7 @@ export function Settings() {
       const res = await api.calendarSync();
       showToast(`Synced ${res.synced} event${res.synced !== 1 ? "s" : ""}.`);
     } catch {
-      showToast("Sync failed.");
+      showToast("Sync failed. Please try again.");
     } finally {
       setSyncing(false);
     }
@@ -177,7 +178,7 @@ export function Settings() {
       setAddingAccount(false);
       showToast("Account added.");
     } catch {
-      // ignore
+      showToast("Failed to add account. Check your credentials.");
     } finally {
       setSavingAcct(false);
     }
@@ -190,37 +191,50 @@ export function Settings() {
       setAccounts((prev) => prev.filter((a) => a.id !== id));
       showToast("Account removed.");
     } catch {
-      // ignore
+      showToast("Failed to remove account.");
     }
   }
 
   if (loading) {
-    return <div className="text-sub text-sm py-10 text-center">Loading…</div>;
+    return (
+      <div role="status" aria-live="polite" className="text-sub text-sm py-10 text-center">
+        Loading…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="flex flex-col items-center justify-center py-20 text-center gap-3">
+        <p className="text-danger text-sm font-medium">{error}</p>
+        <button
+          type="button"
+          onClick={() => { setError(null); setLoading(true); void Promise.all([loadSettings(), loadAccounts()]); }}
+          className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
     <div className="max-w-2xl">
       <h1 className="text-lg font-semibold mb-5">Settings</h1>
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-text text-white text-sm px-4 py-2.5 rounded-btn shadow-card">
-          {toast}
-        </div>
-      )}
-
       <div className="flex flex-col gap-6">
         {/* 1. AI Provider */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card">
-          <h2 className="text-sm font-semibold mb-3">AI Provider</h2>
+        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="ai-provider-heading">
+          <h2 id="ai-provider-heading" className="text-sm font-semibold mb-3">AI Provider</h2>
           <Segmented<"auto" | "local" | "gemini">
+            label="AI provider"
             value={settings?.ai_provider_pref ?? "auto"}
             options={[
               { label: "Local", value: "local" },
               { label: "Auto", value: "auto" },
               { label: "Gemini", value: "gemini" },
             ]}
-            onChange={handleAiProvider}
+            onChange={(val) => void handleAiProvider(val)}
           />
           {settings?.ai_provider_pref === "local" && (
             <p className="text-xs text-muted mt-2">
@@ -231,10 +245,12 @@ export function Settings() {
         </section>
 
         {/* 2. Gemini API key */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card">
-          <h2 className="text-sm font-semibold mb-3">Gemini API Key</h2>
-          <form onSubmit={handleSaveGemini} className="flex gap-2">
+        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="gemini-key-heading">
+          <h2 id="gemini-key-heading" className="text-sm font-semibold mb-3">Gemini API Key</h2>
+          <form onSubmit={(e) => void handleSaveGemini(e)} className="flex gap-2">
+            <label htmlFor="gemini-key-input" className="sr-only">Gemini API key</label>
             <input
+              id="gemini-key-input"
               type="password"
               className="text-sm border border-border rounded-btn px-3 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-accent/30"
               placeholder={settings?.gemini_key_masked ? `${settings.gemini_key_masked}` : "Enter API key"}
@@ -252,15 +268,16 @@ export function Settings() {
         </section>
 
         {/* 3. Scan frequency */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card">
-          <h2 className="text-sm font-semibold mb-3">Scan Frequency</h2>
-          <form onSubmit={handleSavePoll} className="flex flex-col gap-3">
+        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="scan-freq-heading">
+          <h2 id="scan-freq-heading" className="text-sm font-semibold mb-3">Scan Frequency</h2>
+          <form onSubmit={(e) => void handleSavePoll(e)} className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-sub mb-1 block">
+                <label htmlFor="poll-interval" className="text-xs font-medium text-sub mb-1 block">
                   Poll every (minutes)
                 </label>
                 <input
+                  id="poll-interval"
                   type="number"
                   min="1"
                   className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
@@ -269,10 +286,11 @@ export function Settings() {
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-sub mb-1 block">
+                <label htmlFor="reminder-lead" className="text-xs font-medium text-sub mb-1 block">
                   Reminder lead (minutes)
                 </label>
                 <input
+                  id="reminder-lead"
                   type="number"
                   min="0"
                   className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
@@ -294,17 +312,19 @@ export function Settings() {
         </section>
 
         {/* 4. Calendar */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card">
-          <h2 className="text-sm font-semibold mb-3">Calendar</h2>
+        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="calendar-heading">
+          <h2 id="calendar-heading" className="text-sm font-semibold mb-3">Calendar</h2>
           {settings?.calendar_connected ? (
             <div className="flex items-center gap-3">
               <span className="text-sm text-green font-medium flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-green" />
+                <span aria-hidden="true" className="w-2 h-2 rounded-full bg-green" />
                 Connected
               </span>
               <button
-                onClick={handleCalendarSync}
+                type="button"
+                onClick={() => void handleCalendarSync()}
                 disabled={syncing}
+                aria-label={syncing ? "Syncing calendar…" : "Sync Google Calendar now"}
                 className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
               >
                 {syncing ? "Syncing…" : "Sync now"}
@@ -312,7 +332,9 @@ export function Settings() {
             </div>
           ) : (
             <button
-              onClick={handleCalendarConnect}
+              type="button"
+              onClick={() => void handleCalendarConnect()}
+              aria-label="Connect Google Calendar"
               className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 transition-colors"
             >
               Connect Google Calendar
@@ -321,23 +343,28 @@ export function Settings() {
         </section>
 
         {/* 5. Notifications */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card">
+        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="notifications-heading">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold">Push Notifications</h2>
-              <p className="text-xs text-muted mt-0.5">
+              <h2 id="notifications-heading" className="text-sm font-semibold">Push Notifications</h2>
+              <p id="notifications-desc" className="text-xs text-muted mt-0.5">
                 Get notified about upcoming tasks.
               </p>
             </div>
             <button
-              onClick={handlePushToggle}
+              type="button"
+              role="switch"
+              aria-checked={settings?.push_enabled ?? false}
+              aria-label="Enable push notifications"
+              aria-describedby="notifications-desc"
+              onClick={() => void handlePushToggle()}
               disabled={togglingPush}
               className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
                 settings?.push_enabled ? "bg-accent" : "bg-border"
               }`}
-              aria-label="Toggle push notifications"
             >
               <span
+                aria-hidden="true"
                 className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
                   settings?.push_enabled ? "translate-x-6" : "translate-x-1"
                 }`}
@@ -347,11 +374,14 @@ export function Settings() {
         </section>
 
         {/* 6. Email accounts */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card">
+        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="accounts-heading">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">Email Accounts</h2>
+            <h2 id="accounts-heading" className="text-sm font-semibold">Email Accounts</h2>
             <button
+              type="button"
               onClick={() => setAddingAccount((v) => !v)}
+              aria-expanded={addingAccount}
+              aria-controls="add-account-form"
               className="text-xs bg-accent-tint text-accent rounded-btn px-2.5 py-1.5 font-medium hover:bg-accent/20 transition-colors"
             >
               {addingAccount ? "Cancel" : "+ Add inbox"}
@@ -362,10 +392,11 @@ export function Settings() {
           {accounts.length === 0 && !addingAccount && (
             <p className="text-sm text-muted">No accounts connected.</p>
           )}
-          <div className="flex flex-col gap-2 mb-3">
+          <div className="flex flex-col gap-2 mb-3" role="list" aria-label="Connected email accounts">
             {accounts.map((acct) => (
               <div
                 key={acct.id}
+                role="listitem"
                 className="flex items-center justify-between border border-border rounded-btn px-3 py-2"
               >
                 <div>
@@ -377,7 +408,9 @@ export function Settings() {
                   </p>
                 </div>
                 <button
-                  onClick={() => handleDeleteAccount(acct.id)}
+                  type="button"
+                  onClick={() => void handleDeleteAccount(acct.id)}
+                  aria-label={`Remove account ${acct.email_address}`}
                   className="text-xs text-danger hover:text-danger/80"
                 >
                   Remove
@@ -388,38 +421,59 @@ export function Settings() {
 
           {/* Add account form */}
           {addingAccount && (
-            <form onSubmit={handleAddAccount} className="flex flex-col gap-2 border-t border-border pt-3">
-              <input
-                type="email"
-                required
-                placeholder="Email address"
-                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
-                value={acctEmail}
-                onChange={(e) => setAcctEmail(e.target.value)}
-              />
-              <div className="grid grid-cols-3 gap-2">
+            <form
+              id="add-account-form"
+              onSubmit={(e) => void handleAddAccount(e)}
+              className="flex flex-col gap-2 border-t border-border pt-3"
+              aria-label="Add email account"
+            >
+              <div>
+                <label htmlFor="acct-email" className="sr-only">Email address</label>
                 <input
-                  className="col-span-2 text-sm border border-border rounded-btn px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  placeholder="IMAP host"
-                  value={acctHost}
-                  onChange={(e) => setAcctHost(e.target.value)}
-                />
-                <input
-                  type="number"
-                  className="text-sm border border-border rounded-btn px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  placeholder="Port"
-                  value={acctPort}
-                  onChange={(e) => setAcctPort(e.target.value)}
+                  id="acct-email"
+                  type="email"
+                  required
+                  placeholder="Email address"
+                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  value={acctEmail}
+                  onChange={(e) => setAcctEmail(e.target.value)}
                 />
               </div>
-              <input
-                type="password"
-                required
-                placeholder="App password"
-                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
-                value={acctPassword}
-                onChange={(e) => setAcctPassword(e.target.value)}
-              />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label htmlFor="acct-host" className="sr-only">IMAP host</label>
+                  <input
+                    id="acct-host"
+                    className="w-full text-sm border border-border rounded-btn px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    placeholder="IMAP host"
+                    value={acctHost}
+                    onChange={(e) => setAcctHost(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="acct-port" className="sr-only">IMAP port</label>
+                  <input
+                    id="acct-port"
+                    type="number"
+                    className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    placeholder="Port"
+                    value={acctPort}
+                    onChange={(e) => setAcctPort(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="acct-password" className="sr-only">App password</label>
+                <input
+                  id="acct-password"
+                  type="password"
+                  required
+                  placeholder="App password"
+                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  value={acctPassword}
+                  onChange={(e) => setAcctPassword(e.target.value)}
+                />
+              </div>
               <p className="text-xs text-muted">
                 Use a Gmail app password, not your main password.
               </p>
@@ -434,6 +488,9 @@ export function Settings() {
           )}
         </section>
       </div>
+
+      {/* Toast */}
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

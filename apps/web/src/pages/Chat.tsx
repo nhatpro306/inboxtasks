@@ -38,6 +38,7 @@ export function Chat() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputId = "chat-input";
 
   // Load history on mount
   useEffect(() => {
@@ -131,12 +132,19 @@ export function Chat() {
       <h1 className="text-lg font-semibold mb-4">Chat</h1>
 
       {/* Message area */}
-      <div className="flex-1 bg-card rounded-card border border-border shadow-card p-4 flex flex-col mb-4 min-h-[360px] overflow-y-auto">
+      <div
+        role="log"
+        aria-live="polite"
+        aria-label="Chat messages"
+        className="flex-1 bg-card rounded-card border border-border shadow-card p-4 flex flex-col mb-4 min-h-[360px] overflow-y-auto"
+      >
         {isEmpty ? (
           /* Empty state */
           <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <div className="w-12 h-12 rounded-card bg-accent-tint text-accent grid place-items-center mb-3">
+            <div className="w-12 h-12 rounded-card bg-accent-tint text-accent grid place-items-center mb-3" aria-hidden="true">
               <svg
+                aria-hidden="true"
+                focusable="false"
                 className="w-6 h-6"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -163,6 +171,7 @@ export function Chat() {
               ].map((example) => (
                 <button
                   key={example}
+                  type="button"
                   onClick={() => {
                     setInput(example);
                     textareaRef.current?.focus();
@@ -182,6 +191,8 @@ export function Chat() {
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
+                  role={msg.role === "assistant" ? "article" : undefined}
+                  aria-label={msg.role === "assistant" ? "Assistant message" : "Your message"}
                   className={`max-w-[78%] rounded-card px-4 py-2.5 text-sm leading-relaxed ${
                     msg.role === "user"
                       ? "bg-accent text-white"
@@ -195,11 +206,11 @@ export function Chat() {
 
             {/* Typing indicator */}
             {loading && (
-              <div className="flex justify-start">
+              <div className="flex justify-start" role="status" aria-label="Assistant is typing">
                 <div className="bg-card border border-border rounded-card px-4 py-3 flex gap-1 items-center shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-muted animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-2 h-2 rounded-full bg-muted animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-2 h-2 rounded-full bg-muted animate-bounce" />
+                  <span aria-hidden="true" className="w-2 h-2 rounded-full bg-muted animate-bounce [animation-delay:-0.3s]" />
+                  <span aria-hidden="true" className="w-2 h-2 rounded-full bg-muted animate-bounce [animation-delay:-0.15s]" />
+                  <span aria-hidden="true" className="w-2 h-2 rounded-full bg-muted animate-bounce" />
                 </div>
               </div>
             )}
@@ -207,22 +218,30 @@ export function Chat() {
             {/* Pending proposed action card */}
             {pendingAction && (
               <div className="flex justify-start w-full mt-1">
-                <div className="w-full max-w-[90%] bg-accent-tint border border-accent/30 rounded-card px-4 py-3 text-sm">
-                  <p className="text-accent font-semibold mb-1 text-xs uppercase tracking-wide">
+                <div
+                  role="group"
+                  aria-label="Proposed action"
+                  className="w-full max-w-[90%] bg-accent-tint border border-accent/30 rounded-card px-4 py-3 text-sm"
+                >
+                  <p className="text-accent font-semibold mb-1 text-xs uppercase tracking-wide" aria-hidden="true">
                     Proposed action
                   </p>
                   <p className="text-text mb-3">{actionSummary(pendingAction.action)}</p>
                   <div className="flex gap-2">
                     <button
+                      type="button"
                       onClick={() => void handleConfirm()}
                       disabled={confirmLoading}
+                      aria-label="Confirm proposed action"
                       className="bg-accent text-white text-xs font-medium rounded-btn px-4 py-1.5 hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {confirmLoading ? "Confirming…" : "Confirm"}
                     </button>
                     <button
+                      type="button"
                       onClick={handleCancel}
                       disabled={confirmLoading}
+                      aria-label="Cancel proposed action"
                       className="bg-transparent text-sub text-xs font-medium rounded-btn px-4 py-1.5 border border-border hover:bg-bg transition-colors disabled:opacity-50"
                     >
                       Cancel
@@ -239,7 +258,11 @@ export function Chat() {
 
       {/* Input bar */}
       <div className="flex gap-2 items-end">
+        <label htmlFor={inputId} className="sr-only">
+          Message — press Enter to send, Shift+Enter for a new line
+        </label>
         <textarea
+          id={inputId}
           ref={textareaRef}
           rows={1}
           className="flex-1 text-sm border border-border rounded-btn px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30 bg-card resize-none disabled:opacity-50 disabled:cursor-not-allowed"
@@ -251,8 +274,10 @@ export function Chat() {
           style={{ minHeight: "38px", maxHeight: "120px" }}
         />
         <button
+          type="button"
           onClick={() => void send()}
           disabled={loading || !input.trim()}
+          aria-label="Send message"
           className="bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
           Send

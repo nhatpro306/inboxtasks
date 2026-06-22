@@ -34,7 +34,10 @@
     "typecheck:web": "npm run typecheck --workspace apps/web",
     "test:shared": "npm run test --workspace packages/shared --if-present",
     "test:db": "npm run test --workspace packages/db --if-present",
+    "test:llm": "npm run test --workspace packages/llm --if-present",
     "test:pipeline": "npm run test --workspace packages/pipeline --if-present",
+    "test:all": "npm-run-all -c test:shared test:db test:llm test:pipeline",
+    "test:e2e": "playwright test",
     "db:generate": "prisma generate --schema db/schema.prisma",
     "db:migrate": "prisma migrate dev --schema db/schema.prisma",
     "db:deploy": "prisma migrate deploy --schema db/schema.prisma",
@@ -43,6 +46,7 @@
     "docker:down": "docker compose down"
   },
   "devDependencies": {
+    "@playwright/test": "1.49.0",
     "npm-run-all": "4.1.5",
     "prisma": "5.22.0",
     "typescript": "5.6.3"

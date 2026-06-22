@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -6,6 +6,7 @@ import type { EventClickArg, EventInput } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
 import { api, Task } from "../lib/api.js";
 import { fmtDay } from "../lib/format.js";
+import { Toast } from "../components/Toast.js";
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: "#EF4444",
@@ -15,34 +16,35 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export function CalendarPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [calendarConnected, setCalendarConnected] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const calendarRef = useRef<FullCalendar>(null);
 
-  useEffect(() => {
-    void loadTasks();
-    void loadSettings();
-  }, []);
-
-  async function loadTasks() {
+  const loadTasks = useCallback(async () => {
     try {
       const data = await api.listTasks();
       setTasks(data.filter((t) => t.due_date && t.status !== "dismissed"));
     } catch {
-      // ignore
+      setError("Failed to load tasks.");
     }
-  }
+  }, []);
 
-  async function loadSettings() {
+  const loadSettings = useCallback(async () => {
     try {
       const s = await api.getSettings();
       setCalendarConnected(s.calendar_connected);
     } catch {
-      // ignore
+      // silently ignore — calendar button shows regardless
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void Promise.all([loadTasks(), loadSettings()]).finally(() => setLoading(false));
+  }, [loadTasks, loadSettings]);
 
   const events: EventInput[] = tasks
     .filter((t) => t.due_date)
@@ -69,12 +71,11 @@ export function CalendarPage() {
 
   async function handleSync() {
     setSyncing(true);
-    setSyncMsg(null);
     try {
       const res = await api.calendarSync();
-      setSyncMsg(`Synced ${res.synced} event${res.synced !== 1 ? "s" : ""}.`);
+      setToast(`Synced ${res.synced} event${res.synced !== 1 ? "s" : ""}.`);
     } catch {
-      setSyncMsg("Sync failed.");
+      setToast("Sync failed. Please try again.");
     } finally {
       setSyncing(false);
     }
@@ -85,8 +86,31 @@ export function CalendarPage() {
       const res = await api.calendarConnect();
       window.location.href = res.url;
     } catch {
-      // ignore
+      setToast("Failed to initiate calendar connection.");
     }
+  }
+
+  if (loading) {
+    return (
+      <div role="status" aria-live="polite" className="flex items-center justify-center py-20 text-sub text-sm">
+        Loading…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="flex flex-col items-center justify-center py-20 text-center gap-3">
+        <p className="text-danger text-sm font-medium">{error}</p>
+        <button
+          type="button"
+          onClick={() => { setError(null); setLoading(true); void Promise.all([loadTasks(), loadSettings()]).finally(() => setLoading(false)); }}
+          className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -95,15 +119,19 @@ export function CalendarPage() {
         <h1 className="text-lg font-semibold">Calendar</h1>
         {calendarConnected ? (
           <button
-            onClick={handleSync}
+            type="button"
+            onClick={() => void handleSync()}
             disabled={syncing}
+            aria-label={syncing ? "Syncing calendar…" : "Sync Google Calendar"}
             className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
           >
             {syncing ? "Syncing…" : "Sync calendar"}
           </button>
         ) : (
           <button
-            onClick={handleConnect}
+            type="button"
+            onClick={() => void handleConnect()}
+            aria-label="Connect Google Calendar"
             className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 transition-colors"
           >
             Connect Google Calendar
@@ -111,14 +139,8 @@ export function CalendarPage() {
         )}
       </div>
 
-      {syncMsg && (
-        <div className="mb-3 text-sm text-sub border border-border rounded-btn px-3 py-2 bg-card">
-          {syncMsg}
-        </div>
-      )}
-
       {!calendarConnected && (
-        <div className="mb-3 text-xs text-muted border border-border rounded-btn px-3 py-2 bg-card">
+        <div role="note" className="mb-3 text-xs text-muted border border-border rounded-btn px-3 py-2 bg-card">
           Calendar not connected. Connect Google Calendar to sync events.
         </div>
       )}
@@ -143,7 +165,7 @@ export function CalendarPage() {
 
       {/* Day tasks */}
       {selectedDate && (
-        <div>
+        <section aria-label={`Tasks for ${fmtDay(selectedDate)}`}>
           <h2 className="text-sm font-semibold text-sub mb-2 uppercase tracking-wide">
             {fmtDay(selectedDate)}
           </h2>
@@ -157,6 +179,7 @@ export function CalendarPage() {
                   className="bg-card rounded-card border border-border p-3 flex items-center gap-3 shadow-card"
                 >
                   <span
+                    aria-hidden="true"
                     className="w-2 h-2 rounded-full flex-shrink-0"
                     style={{ backgroundColor: PRIORITY_COLORS[t.priority] }}
                   />
@@ -165,8 +188,10 @@ export function CalendarPage() {
               ))}
             </div>
           )}
-        </div>
+        </section>
       )}
+
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

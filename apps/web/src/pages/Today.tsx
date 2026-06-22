@@ -1,35 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api, Task } from "../lib/api.js";
 import { TaskCard } from "../components/TaskCard.js";
+import { Toast } from "../components/Toast.js";
 import { isOverdue, isToday } from "../lib/format.js";
 
 export function Today() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  async function loadTasks() {
+  const loadTasks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const data = await api.listTasks();
-      // Filter to active tasks (not suggested/dismissed)
       setTasks(data.filter((t) => t.status !== "suggested" && t.status !== "dismissed"));
     } catch {
-      // ignore
+      setError("Failed to load tasks. Check that the API is running.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadTasks();
-  }, []);
+  }, [loadTasks]);
 
   async function handleToggleDone(task: Task) {
     const newStatus = task.status === "done" ? "accepted" : "done";
     try {
       const updated = await api.patchTask(task.id, { status: newStatus });
       setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      setToast(newStatus === "done" ? "Task marked done." : "Task marked active.");
     } catch {
-      // ignore
+      setToast("Failed to update task.");
     }
   }
 
@@ -47,8 +52,23 @@ export function Today() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-sub text-sm">
+      <div role="status" aria-live="polite" className="flex items-center justify-center py-20 text-sub text-sm">
         Loading…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="flex flex-col items-center justify-center py-20 text-center gap-3">
+        <p className="text-danger text-sm font-medium">{error}</p>
+        <button
+          type="button"
+          onClick={() => void loadTasks()}
+          className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -63,7 +83,7 @@ export function Today() {
   if (isEmpty) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="text-4xl mb-3">✓</div>
+        <div aria-hidden="true" className="text-4xl mb-3">✓</div>
         <p className="text-sub font-medium">All clear!</p>
         <p className="text-muted text-sm mt-1">No tasks yet. Scan your inbox or create a task.</p>
       </div>
@@ -73,7 +93,7 @@ export function Today() {
   function Section({ title, items }: { title: string; items: Task[] }) {
     if (items.length === 0) return null;
     return (
-      <section className="mb-6">
+      <section className="mb-6" aria-label={title}>
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">{title}</h2>
         <div className="flex flex-col gap-2">
           {items.map((task) => (
@@ -92,6 +112,7 @@ export function Today() {
       <Section title="Upcoming" items={upcoming} />
       <Section title="No date" items={noDate} />
       <Section title="Done" items={done} />
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

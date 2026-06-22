@@ -5,3 +5,26 @@
 
 :root { color-scheme: light; }
 body { @apply bg-bg text-text font-sans antialiased; margin: 0; }
+
+/* ── Global focus-visible outline (WCAG 2.4.7) ─────────────────────────── */
+*:focus-visible {
+  outline: 2px solid #5B5BD6;
+  outline-offset: 2px;
+}
+
+/* Remove default outline in favour of our custom one */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Reduced motion (WCAG 2.3.3) ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
