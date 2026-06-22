@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run db:generate && npm run build:packages && npm run build --workspace apps/web",
+  "outputDirectory": "apps/web/dist",
+  "framework": null,
+  "functions": { "api/*.ts": { "maxDuration": 60 } },
+  "crons": [{ "path": "/api/cron", "schedule": "0 * * * *" }],
+  "rewrites": [
+    { "source": "/api/cron", "destination": "/api/cron" },
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

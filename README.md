@@ -76,6 +76,50 @@ Open http://localhost:5173 (installable PWA). API health: http://localhost:3001/
 - **4 Chatbot** ✅ retrieval + confirm-gated action protocol
 - **5 Hardening** ✅ security pass, injection + integration test suites, accessibility, polish, E2E scaffold
 
+## Deploy to Vercel (full serverless, Gemini-only)
+
+Ollama and the local worker process do not run in a serverless environment. On Vercel, the AI pipeline uses **Gemini** exclusively and the hourly scan is handled by a **Vercel Cron** job (`/api/cron`, runs every hour). The Fastify app is served as a single catch-all serverless function (`/api/*`).
+
+### Steps
+
+1. **Push the repo to GitHub** (or GitLab/Bitbucket).
+2. **Import the project in [Vercel](https://vercel.com/new)** — select the repo root, framework = Other (vercel.json overrides everything).
+3. **Set environment variables** in the Vercel dashboard (Settings → Environment Variables):
+
+   | Variable | Value |
+   |---|---|
+   | `DATABASE_URL` | Pooled Postgres URL (Neon pgbouncer or Supabase pooler — required for serverless connection limits) |
+   | `APP_MASTER_KEY` | 64-char hex string (same key you generated locally) |
+   | `AI_PROVIDER_PREF` | `gemini` |
+   | `GEMINI_API_KEY` | Your Gemini API key |
+   | `VAPID_PUBLIC_KEY` | From `npx web-push generate-vapid-keys` |
+   | `VAPID_PRIVATE_KEY` | From the same command |
+   | `VAPID_SUBJECT` | `mailto:<your-email>` |
+   | `GOOGLE_CLIENT_ID` | Google OAuth client ID (for Calendar) |
+   | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+   | `GOOGLE_REDIRECT_URI` | `https://<your-vercel-domain>/api/calendar/callback` |
+   | `WEB_ORIGIN` | `https://<your-vercel-domain>` |
+   | `USER_EMAIL` | Your email address (single-user bootstrap) |
+
+   `VITE_API_URL` can be left unset — the web build defaults to same-origin (`""`) in production so `/api/...` calls resolve on the Vercel domain automatically.
+
+4. **Run the database migration once** against the hosted database (from your local machine):
+
+   ```bash
+   DATABASE_URL="<your-hosted-pooled-url>" npx prisma migrate deploy --schema db/schema.prisma
+   ```
+
+   Or use a one-off Vercel function / CI step. This only needs to run when the schema changes.
+
+5. **Deploy** — Vercel runs the build command (`npm run db:generate && npm run build:packages && npm run build --workspace apps/web`), serves the SPA from `apps/web/dist`, and routes `/api/*` to the serverless function.
+
+### How it works in production
+
+- **`/api/cron`** — Vercel Cron calls this endpoint every hour (schedule: `0 * * * *`). It runs `runCycle()`: IMAP ingest → AI extraction → reminder push.
+- **`/api/*`** — All other API calls (including `/health`) are handled by the Fastify catch-all function. The Fastify instance is cached across warm invocations.
+- **60-second function limit** — large email backlogs process across multiple cron runs (50 emails per cycle by default). This is by design.
+- **Ollama is not used** — set `AI_PROVIDER_PREF=gemini`; the `local` provider and Ollama URL are ignored.
+
 ## Known follow-ups
 
 - PWA icons (`apps/web/public/pwa-*.png`) are 1×1 placeholders — replace with real artwork.
