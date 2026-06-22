@@ -8,6 +8,7 @@ import { taskRoutes } from "./routes/tasks.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { pushRoutes } from "./routes/push.js";
 import { calendarRoutes } from "./routes/calendar.js";
+import { chatRoutes } from "./routes/chat.js";
 
 const app = Fastify({ logger: true });
 
@@ -35,6 +36,7 @@ await app.register(taskRoutes);
 await app.register(settingsRoutes);
 await app.register(pushRoutes);
 await app.register(calendarRoutes);
+await app.register(chatRoutes);
 
 // Make sure the single user + settings exist before serving.
 await ensureUser();

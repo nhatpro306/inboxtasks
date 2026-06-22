@@ -5,3 +5,4 @@ export * from "./validate.js";
 export * from "./ollama.js";
 export * from "./gemini.js";
 export * from "./failover.js";
+export * from "./chat.js";

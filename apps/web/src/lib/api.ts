@@ -51,6 +51,22 @@ export interface Account {
   last_seen_uid: number;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  created_at?: string;
+}
+
+export interface ProposedAction {
+  type: "create_task" | "update_task" | "complete_task";
+  task_id?: string;
+  title?: string;
+  description?: string;
+  due_date?: string | null;
+  priority?: "low" | "medium" | "high";
+  status?: string;
+}
+
 interface TaskQuery {
   status?: string;
   from?: string;
@@ -123,4 +139,18 @@ export const api = {
   calendarConnect: () => req<{ url: string }>("/api/calendar/connect"),
 
   calendarSync: () => req<{ synced: number }>("/api/calendar/sync", { method: "POST" }),
+
+  chatHistory: () => req<{ messages: ChatMessage[] }>("/api/chat/history"),
+
+  chat: (message: string) =>
+    req<{ reply: string; proposed_action: ProposedAction | null }>("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
+
+  chatConfirm: (action: ProposedAction) =>
+    req<{ ok: boolean; task: Task }>("/api/chat/confirm", {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }),
 };
