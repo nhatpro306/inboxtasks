@@ -2,8 +2,14 @@ import { config } from "dotenv";
 import { resolve } from "node:path";
 
 // Load root .env regardless of cwd.
-config({ path: resolve(process.cwd(), ".env") });
-config({ path: resolve(import.meta.dirname, "../../../.env") });
+try {
+  config({ path: resolve(process.cwd(), ".env") });
+  if (typeof import.meta.dirname === "string") {
+    config({ path: resolve(import.meta.dirname, "../../../.env") });
+  }
+} catch {
+  // Ignore missing or inaccessible .env in production serverless environments
+}
 
 export const env = {
   port: Number(process.env.API_PORT ?? 3001),

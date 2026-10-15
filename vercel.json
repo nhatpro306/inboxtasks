@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run db:generate && npm run build:packages && npm run build --workspace apps/web",
+  "buildCommand": "npm run db:generate && npm run build:packages && npm run build:api && npm run build --workspace apps/web",
   "outputDirectory": "apps/web/dist",
   "framework": null,
-  "functions": { "api/*.ts": { "maxDuration": 60 } },
+  "functions": { "api/*.ts": { "maxDuration": 60, "includeFiles": "node_modules/.prisma/client/**" } },
   "crons": [{ "path": "/api/cron", "schedule": "0 0 * * *" }],
   "rewrites": [
     { "source": "/api/cron", "destination": "/api/cron" },

@@ -4,7 +4,7 @@ import { buildApp } from "@inboxtasks/api";
 let ready: Promise<Awaited<ReturnType<typeof buildApp>>> | null = null;
 
 function getApp() {
-  if (!ready)
+  if (!ready) {
     ready = buildApp()
       .then(async (app) => {
         await app.ready();
@@ -14,6 +14,7 @@ function getApp() {
         ready = null;
         throw err;
       });
+  }
   return ready;
 }
 
