@@ -6,6 +6,7 @@ import { Review } from "./pages/Review.js";
 import { CalendarPage } from "./pages/CalendarPage.js";
 import { Settings } from "./pages/Settings.js";
 import { Chat } from "./pages/Chat.js";
+import { Analytics } from "./pages/Analytics.js";
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
         <Route path="all" element={<AllTasks />} />
         <Route path="review" element={<Review />} />
         <Route path="calendar" element={<CalendarPage />} />
+        <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
         <Route path="chat" element={<Chat />} />
         <Route path="*" element={<Navigate to="/" replace />} />

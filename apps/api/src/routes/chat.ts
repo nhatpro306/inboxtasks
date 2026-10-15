@@ -57,7 +57,7 @@ async function bestEffortCalendarPush(userId: string, taskId: string): Promise<v
 
 function parseDueDate(due_date: string | null | undefined): Date | null {
   if (!due_date) return null;
-  const d = new Date(`${due_date}T00:00:00Z`);
+  const d = due_date.includes("T") ? new Date(due_date) : new Date(`${due_date}T00:00:00Z`);
   return isNaN(d.getTime()) ? null : d;
 }
 

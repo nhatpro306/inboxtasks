@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { api } from "../lib/api.js";
-import { useAppEventListener } from "../lib/events.js";
+import { api, Task } from "../lib/api.js";
+import { useAppEventListener, appEvents } from "../lib/events.js";
 import { Toast } from "./Toast.js";
-import { serializeSubtasks } from "../lib/subtask.js";
+import { serializeSubtasks, parseSubtasks, SubtaskItem } from "../lib/subtask.js";
+import { hasTime } from "../lib/format.js";
+import { CommandPalette } from "./CommandPalette.js";
 
 function TodayIcon() {
   return (
@@ -52,6 +54,14 @@ function SettingsIcon() {
     <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeLinecap="round" />
       <circle cx="12" cy="12" r="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function AnalyticsIcon() {
+  return (
+    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path d="M18 20V10M12 20V4M6 20v-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -266,11 +276,348 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
   );
 }
 
+interface EditTaskModalProps {
+  task: Task;
+  onClose: () => void;
+  onUpdated: (t: Task) => void;
+  onDeleted: (id: string) => void;
+}
+
+function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalProps) {
+  const [title, setTitle] = useState(task.title);
+  const parsed = parseSubtasks(task.description);
+  const [cleanDesc, setCleanDesc] = useState(parsed.cleanDescription);
+  const [subtaskItems, setSubtaskItems] = useState<SubtaskItem[]>(parsed.subtasks);
+  const [newSubtaskInput, setNewSubtaskInput] = useState("");
+
+  const initialDueDate = task.due_date
+    ? hasTime(task.due_date)
+      ? (() => {
+          const d = new Date(task.due_date);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          return `${y}-${m}-${day}`;
+        })()
+      : task.due_date.slice(0, 10)
+    : "";
+
+  const initialDueTime =
+    task.due_date && hasTime(task.due_date)
+      ? (() => {
+          const d = new Date(task.due_date);
+          return isNaN(d.getTime())
+            ? ""
+            : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        })()
+      : "";
+
+  const [dueDate, setDueDate] = useState(initialDueDate);
+  const [dueTime, setDueTime] = useState(initialDueTime);
+  const [priority, setPriority] = useState<"low" | "medium" | "high">(task.priority);
+  const [status, setStatus] = useState(task.status);
+  const [saving, setSaving] = useState(false);
+
+  function handleToggleSubtask(id: string) {
+    setSubtaskItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item))
+    );
+  }
+
+  function handleUpdateSubtaskTitle(id: string, newTitle: string) {
+    setSubtaskItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, title: newTitle } : item))
+    );
+  }
+
+  function handleRemoveSubtask(id: string) {
+    setSubtaskItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function handleAddSubtask() {
+    const trimmed = newSubtaskInput.trim();
+    if (!trimmed) return;
+    const newItem: SubtaskItem = {
+      id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      title: trimmed,
+      completed: false,
+    };
+    setSubtaskItems((prev) => [...prev, newItem]);
+    setNewSubtaskInput("");
+  }
+
+  function handleSubtaskKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddSubtask();
+    }
+  }
+
+  const totalCount = subtaskItems.length;
+  const completedCount = subtaskItems.filter((s) => s.completed).length;
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  async function handleSave(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      let finalDueDate: string | null = null;
+      if (dueDate) {
+        if (dueTime) {
+          const d = new Date(`${dueDate}T${dueTime}:00`);
+          finalDueDate = isNaN(d.getTime()) ? dueDate : d.toISOString();
+        } else {
+          finalDueDate = dueDate;
+        }
+      }
+
+      const finalDescription = serializeSubtasks(cleanDesc, subtaskItems);
+
+      const updated = await api.patchTask(task.id, {
+        title: title.trim(),
+        description: finalDescription.trim() || null,
+        due_date: finalDueDate,
+        priority,
+        status,
+      });
+      onUpdated(updated);
+      onClose();
+    } catch {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Delete this task? This cannot be undone.")) return;
+    try {
+      await api.deleteTask(task.id);
+      onDeleted(task.id);
+      onClose();
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") onClose();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="app-edit-task-heading"
+    >
+      <div
+        className="bg-card rounded-card shadow-card border border-border w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 id="app-edit-task-heading" className="text-base font-semibold">Edit Task</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close edit modal"
+            className="text-muted hover:text-text p-1 transition-colors"
+          >
+            <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSave} className="flex flex-col gap-3">
+          <div>
+            <label htmlFor="app-edit-title" className="text-xs font-medium text-sub mb-1 block">Title</label>
+            <input
+              id="app-edit-title"
+              autoFocus
+              className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="app-edit-description" className="text-xs font-medium text-sub mb-1 block">Description</label>
+            <textarea
+              id="app-edit-description"
+              className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
+              rows={3}
+              value={cleanDesc}
+              onChange={(e) => setCleanDesc(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="app-edit-due" className="text-xs font-medium text-sub mb-1 block">Due date</label>
+              <input
+                id="app-edit-due"
+                type="date"
+                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="app-edit-time" className="text-xs font-medium text-sub mb-1 block">Time</label>
+              <input
+                id="app-edit-time"
+                type="time"
+                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="app-edit-priority" className="text-xs font-medium text-sub mb-1 block">Priority</label>
+              <select
+                id="app-edit-priority"
+                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as "low" | "medium" | "high")}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="app-edit-status" className="text-xs font-medium text-sub mb-1 block">Status</label>
+              <select
+                id="app-edit-status"
+                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <option value="accepted">Accepted</option>
+                <option value="in_progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Subtasks Builder & Progress Section */}
+          <div className="border-t border-border/60 pt-3 mt-1">
+            <div className="flex items-center justify-between text-xs text-sub mb-1.5">
+              <span className="font-medium text-text">Subtasks / Checklist</span>
+              <span className="text-muted">
+                {`${completedCount}/${totalCount} subtasks (${progressPercent}%)`}
+              </span>
+            </div>
+            <div
+              className="w-full bg-border/60 rounded-full h-1.5 overflow-hidden mb-3"
+              role="progressbar"
+              aria-valuenow={progressPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Subtasks completion progress"
+            >
+              <div
+                className="bg-accent h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            {subtaskItems.length > 0 && (
+              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto mb-2 pr-0.5">
+                {subtaskItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={item.completed}
+                      onChange={() => handleToggleSubtask(item.id)}
+                      className="rounded border-border text-accent focus:ring-accent/30 h-4 w-4 flex-shrink-0 cursor-pointer"
+                      aria-label={`Toggle subtask ${item.title}`}
+                    />
+                    <input
+                      type="text"
+                      value={item.title}
+                      onChange={(e) => handleUpdateSubtaskTitle(item.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      className={`text-sm border border-border rounded-btn px-2.5 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors ${
+                        item.completed ? "line-through text-muted" : "text-text"
+                      }`}
+                      aria-label="Subtask title"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSubtask(item.id)}
+                      aria-label={`Remove subtask "${item.title}"`}
+                      className="text-muted hover:text-danger p-1 rounded transition-colors text-xs font-semibold flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Add a subtask..."
+                value={newSubtaskInput}
+                onChange={(e) => setNewSubtaskInput(e.target.value)}
+                onKeyDown={handleSubtaskKeyDown}
+                className="text-sm border border-border rounded-btn px-3 py-1.5 flex-1 focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg"
+              />
+              <button
+                type="button"
+                onClick={handleAddSubtask}
+                disabled={!newSubtaskInput.trim()}
+                className="text-xs bg-accent-tint text-accent font-medium px-3 py-1.5 rounded-btn hover:bg-accent/20 disabled:opacity-40 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-4 pt-1">
+            <button
+              type="submit"
+              disabled={saving || !title.trim()}
+              className="flex-1 bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              className="text-sm text-danger border border-danger/20 rounded-btn px-4 py-2 hover:bg-danger/5 transition-colors"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm text-sub border border-border rounded-btn px-4 py-2 hover:bg-bg transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 const navLinks = [
   { to: "/", label: "Today", Icon: TodayIcon },
   { to: "/all", label: "All Tasks", Icon: AllTasksIcon },
   { to: "/calendar", label: "Calendar", Icon: CalendarIcon },
   { to: "/review", label: "Review", Icon: ReviewIcon },
+  { to: "/analytics", label: "Analytics", Icon: AnalyticsIcon },
   { to: "/chat", label: "Chat", Icon: ChatIcon },
   { to: "/settings", label: "Settings", Icon: SettingsIcon },
 ];
@@ -279,6 +626,9 @@ export function AppShell() {
   const [suggestionCount, setSuggestionCount] = useState(0);
   const [scanning, setScanning] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskRefresh, setTaskRefresh] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -322,6 +672,21 @@ export function AppShell() {
     }
   }
 
+  const loadTasks = useCallback(async () => {
+    try {
+      const data = await api.listTasks();
+      setTasks(data.filter((t) => t.status !== "dismissed"));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTasks();
+  }, [loadTasks, taskRefresh]);
+
+  useAppEventListener("tasks:changed", loadTasks);
+
   const loadSuggestionsCount = useCallback(async () => {
     try {
       const data = await api.suggestions();
@@ -343,11 +708,18 @@ export function AppShell() {
   useAppEventListener("suggestions:changed", loadSuggestionsCount);
 
   // Global keyboard shortcuts:
+  // - Ctrl+K / Cmd+K: toggle command palette
   // - Ignore if target is INPUT, TEXTAREA, or SELECT (or contentEditable)
   // - Pressing 'n' or 'c': open setShowCreateModal(true)
   // - Pressing '/': prevent default, focus the desktop search input
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
       if (!target) return;
       const tagName = target.tagName;
@@ -471,7 +843,7 @@ export function AppShell() {
         <header className="bg-card border-b border-border px-6 py-3 flex items-center gap-4">
           <form onSubmit={handleSearchSubmit} className="flex-1 max-w-sm">
             <label htmlFor="global-search" className="sr-only">Search tasks</label>
-            <div className="relative">
+            <div className="relative flex items-center">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
                 <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" />
@@ -483,21 +855,34 @@ export function AppShell() {
                 type="search"
                 value={searchQuery}
                 onChange={handleSearchChange}
-                className="text-sm border border-border rounded-btn pl-9 pr-8 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
+                className="text-sm border border-border rounded-btn pl-9 pr-24 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
                 placeholder="Search tasks... (Enter)"
               />
-              {searchQuery && (
+              <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1.5">
+                {searchQuery && (
+                  <button
+                    type="button"
+                    aria-label="Clear search query"
+                    onClick={handleClearSearch}
+                    className="text-muted hover:text-text transition-colors p-0.5"
+                  >
+                    <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   type="button"
-                  aria-label="Clear search query"
-                  onClick={handleClearSearch}
-                  className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-muted hover:text-text transition-colors"
+                  onClick={() => setShowCommandPalette(true)}
+                  aria-label="Open command palette"
+                  title="Open Command Palette (Ctrl+K or ⌘K)"
+                  className="px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted bg-card hover:bg-border/40 border border-border rounded shadow-xs transition-colors cursor-pointer flex items-center gap-0.5"
                 >
-                  <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
-                  </svg>
+                  <span>Ctrl+K</span>
+                  <span className="text-muted/60">/</span>
+                  <span>⌘K</span>
                 </button>
-              )}
+              </div>
             </div>
           </form>
           <button
@@ -598,11 +983,46 @@ export function AppShell() {
         </nav>
       </div>
 
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        onOpenCreateTask={() => setShowCreateModal(true)}
+        onScanInbox={handleScanNow}
+        onSyncCalendar={async () => {
+          await api.calendarSync();
+          appEvents.emit("tasks:changed");
+        }}
+        tasks={tasks}
+        onSelectTask={(task) => {
+          setEditingTask(task);
+        }}
+      />
+
       {/* New task modal */}
       {showCreateModal && (
         <CreateTaskModal
           onClose={() => setShowCreateModal(false)}
-          onCreated={() => setTaskRefresh((n) => n + 1)}
+          onCreated={() => {
+            setTaskRefresh((n) => n + 1);
+            appEvents.emit("tasks:changed");
+          }}
+        />
+      )}
+
+      {/* Edit task modal */}
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onUpdated={() => {
+            setTaskRefresh((n) => n + 1);
+            appEvents.emit("tasks:changed");
+          }}
+          onDeleted={() => {
+            setTaskRefresh((n) => n + 1);
+            appEvents.emit("tasks:changed");
+          }}
         />
       )}
 
