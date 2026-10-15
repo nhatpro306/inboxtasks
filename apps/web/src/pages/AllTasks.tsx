@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, Task } from "../lib/api.js";
 import { TaskCard } from "../components/TaskCard.js";
 import { Toast } from "../components/Toast.js";
@@ -6,8 +7,8 @@ import { Toast } from "../components/Toast.js";
 const STATUS_OPTIONS = [
   { label: "All", value: "" },
   { label: "Accepted", value: "accepted" },
+  { label: "In Progress", value: "in_progress" },
   { label: "Done", value: "done" },
-  { label: "Pending", value: "pending" },
 ];
 
 interface EditPanelProps {
@@ -137,8 +138,8 @@ function EditPanel({ task, onClose, onUpdated, onDeleted }: EditPanelProps) {
               value={status}
               onChange={(e) => setStatus(e.target.value)}
             >
-              <option value="pending">Pending</option>
               <option value="accepted">Accepted</option>
+              <option value="in_progress">In Progress</option>
               <option value="done">Done</option>
             </select>
           </div>
@@ -167,13 +168,21 @@ function EditPanel({ task, onClose, onUpdated, onDeleted }: EditPanelProps) {
 }
 
 export function AllTasks() {
+  const [searchParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") ?? "");
+  const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
   const [editing, setEditing] = useState<Task | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q !== null) {
+      setSearch(q);
+    }
+  }, [searchParams]);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);

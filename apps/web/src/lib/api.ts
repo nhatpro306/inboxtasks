@@ -26,8 +26,9 @@ export interface Task {
 }
 
 export interface Suggestion extends Task {
-  source_email: { subject: string | null; from: string } | null;
+  source_email: { subject: string | null; from: string; snippet?: string | null } | null;
   match: number;
+  cleanSnippet?: string | null;
 }
 
 export interface Settings {
@@ -39,6 +40,17 @@ export interface Settings {
   gemini_key_masked: string;
   calendar_connected: boolean;
   push_enabled: boolean;
+}
+
+export interface SettingsUpdate extends Partial<Settings> {
+  gemini_key?: string;
+}
+
+export interface CalendarSyncResult {
+  pushed: number;
+  updated: number;
+  removed: number;
+  synced: number;
 }
 
 export interface Account {
@@ -76,13 +88,14 @@ interface TaskQuery {
 export const api = {
   health: () => req<{ status: string }>("/health"),
 
-  listTasks: (q?: TaskQuery) => {
+  listTasks: async (q?: TaskQuery): Promise<Task[]> => {
     const params = new URLSearchParams();
     if (q?.status) params.set("status", q.status);
     if (q?.from) params.set("from", q.from);
     if (q?.to) params.set("to", q.to);
     const qs = params.toString();
-    return req<Task[]>(`/api/tasks${qs ? `?${qs}` : ""}`);
+    const data = await req<{ tasks?: Task[] } | Task[]>(`/api/tasks${qs ? `?${qs}` : ""}`);
+    return Array.isArray(data) ? data : (data?.tasks ?? []);
   },
 
   createTask: (b: Partial<Task>) =>
@@ -103,16 +116,22 @@ export const api = {
       body: JSON.stringify({ confirm: true }),
     }),
 
-  suggestions: () => req<Suggestion[]>("/api/suggestions"),
+  suggestions: async (): Promise<Suggestion[]> => {
+    const data = await req<{ suggestions?: Suggestion[] } | Suggestion[]>("/api/suggestions");
+    return Array.isArray(data) ? data : (data?.suggestions ?? []);
+  },
 
   scanNow: () => req<{ queued: boolean }>("/api/scan-now", { method: "POST" }),
 
   getSettings: () => req<Settings>("/api/settings"),
 
-  putSettings: (b: Partial<Settings>) =>
+  putSettings: (b: SettingsUpdate) =>
     req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(b) }),
 
-  listAccounts: () => req<Account[]>("/api/accounts"),
+  listAccounts: async (): Promise<Account[]> => {
+    const data = await req<{ accounts?: Account[] } | Account[]>("/api/accounts");
+    return Array.isArray(data) ? data : (data?.accounts ?? []);
+  },
 
   addAccount: (b: {
     email_address: string;
@@ -125,7 +144,10 @@ export const api = {
   deleteAccount: (id: string) =>
     req<void>(`/api/accounts/${id}`, { method: "DELETE" }),
 
-  vapid: () => req<{ publicKey: string }>("/api/push/vapid"),
+  vapid: async (): Promise<{ publicKey: string }> => {
+    const data = await req<{ public_key?: string; publicKey?: string }>("/api/push/vapid");
+    return { publicKey: data.public_key ?? data.publicKey ?? "" };
+  },
 
   subscribePush: (sub: object) =>
     req<void>("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) }),
@@ -138,7 +160,17 @@ export const api = {
 
   calendarConnect: () => req<{ url: string }>("/api/calendar/connect"),
 
-  calendarSync: () => req<{ synced: number }>("/api/calendar/sync", { method: "POST" }),
+  calendarSync: async (): Promise<CalendarSyncResult> => {
+    const data = await req<{ pushed?: number; updated?: number; removed?: number; synced?: number }>(
+      "/api/calendar/sync",
+      { method: "POST" },
+    );
+    const pushed = data.pushed ?? 0;
+    const updated = data.updated ?? 0;
+    const removed = data.removed ?? 0;
+    const synced = data.synced ?? (pushed + updated + removed);
+    return { pushed, updated, removed, synced };
+  },
 
   chatHistory: () => req<{ messages: ChatMessage[] }>("/api/chat/history"),
 

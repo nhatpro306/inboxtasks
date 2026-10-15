@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { Toast } from "./Toast.js";
 
@@ -8,6 +8,14 @@ function TodayIcon() {
     <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <rect x="3" y="4" width="18" height="18" rx="3" strokeLinecap="round" />
       <path d="M3 9h18M8 2v4M16 2v4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function AllTasksIcon() {
+  return (
+    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -154,6 +162,7 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
 
 const navLinks = [
   { to: "/", label: "Today", Icon: TodayIcon },
+  { to: "/all", label: "All Tasks", Icon: AllTasksIcon },
   { to: "/calendar", label: "Calendar", Icon: CalendarIcon },
   { to: "/review", label: "Review", Icon: ReviewIcon },
   { to: "/chat", label: "Chat", Icon: ChatIcon },
@@ -166,16 +175,55 @@ export function AppShell() {
   const [showNewTask, setShowNewTask] = useState(false);
   const [taskRefresh, setTaskRefresh] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
 
   function showToast(msg: string) {
     setToast(msg);
   }
 
+  // Synchronize search input with URL search param when on /all
+  useEffect(() => {
+    if (location.pathname === "/all") {
+      const q = new URLSearchParams(location.search).get("q") ?? "";
+      setSearchQuery(q);
+    }
+  }, [location.pathname, location.search]);
+
+  function handleSearchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    navigate(q ? `/all?q=${encodeURIComponent(q)}` : "/all");
+  }
+
+  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setSearchQuery(val);
+    const q = val.trim();
+    if (q) {
+      navigate(`/all?q=${encodeURIComponent(q)}`, { replace: location.pathname === "/all" });
+    } else if (location.pathname === "/all") {
+      navigate("/all", { replace: true });
+    }
+  }
+
+  function handleClearSearch() {
+    setSearchQuery("");
+    if (location.pathname === "/all") {
+      navigate("/all", { replace: true });
+    }
+  }
+
   const fetchSuggestionCount = useCallback(async () => {
     try {
       const data = await api.suggestions();
-      setSuggestionCount(data.length);
+      const count = Array.isArray(data)
+        ? data.length
+        : Array.isArray((data as any)?.suggestions)
+        ? (data as any).suggestions.length
+        : 0;
+      setSuggestionCount(count);
     } catch {
       // ignore
     }
@@ -188,7 +236,11 @@ export function AppShell() {
   async function handleScanNow() {
     setScanning(true);
     try {
-      await api.scanNow();
+      if (typeof (api as any).ingestAll === "function") {
+        await (api as any).ingestAll();
+      } else {
+        await api.scanNow();
+      }
       showToast("Scan started — checking your inbox.");
       await fetchSuggestionCount();
       navigate("/review");
@@ -273,23 +325,51 @@ export function AppShell() {
       <div className="hidden lg:flex flex-1 flex-col min-h-screen">
         {/* Top bar */}
         <header className="bg-card border-b border-border px-6 py-3 flex items-center gap-4">
-          <div className="flex-1">
+          <form onSubmit={handleSearchSubmit} className="flex-1 max-w-sm">
             <label htmlFor="global-search" className="sr-only">Search tasks</label>
-            <input
-              id="global-search"
-              className="text-sm border border-border rounded-btn px-3 py-1.5 w-64 focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg"
-              placeholder="Search tasks…"
-              type="search"
-            />
-          </div>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
+                <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <input
+                id="global-search"
+                type="search"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                className="text-sm border border-border rounded-btn pl-9 pr-8 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
+                placeholder="Search tasks... (Enter)"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Clear search query"
+                  onClick={handleClearSearch}
+                  className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-muted hover:text-text transition-colors"
+                >
+                  <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </form>
           <button
             type="button"
             onClick={handleScanNow}
             disabled={scanning}
             aria-label={scanning ? "Scanning inbox…" : "Scan inbox now"}
-            className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
+            aria-busy={scanning}
+            className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors flex items-center gap-1.5"
           >
-            {scanning ? "Scanning…" : "Scan now"}
+            {scanning && (
+              <svg aria-hidden="true" className="animate-spin h-3.5 w-3.5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            )}
+            <span>{scanning ? "Scanning…" : "Scan now"}</span>
           </button>
           <div
             aria-label="User avatar"
@@ -320,9 +400,16 @@ export function AppShell() {
             onClick={handleScanNow}
             disabled={scanning}
             aria-label={scanning ? "Scanning inbox…" : "Scan inbox now"}
-            className="text-xs bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
+            aria-busy={scanning}
+            className="text-xs bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors flex items-center gap-1.5"
           >
-            {scanning ? "Scanning…" : "Scan now"}
+            {scanning && (
+              <svg aria-hidden="true" className="animate-spin h-3 w-3 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            )}
+            <span>{scanning ? "Scanning…" : "Scan now"}</span>
           </button>
         </header>
 
@@ -350,7 +437,7 @@ export function AppShell() {
                   <span aria-hidden="true" className={isActive ? "text-accent" : "text-muted"}>
                     <Icon />
                   </span>
-                  <span aria-hidden="true">{label}</span>
+                  <span aria-hidden="true" className="truncate max-w-full px-0.5">{label}</span>
                   {label === "Review" && suggestionCount > 0 && (
                     <span
                       className="absolute top-1 right-1/4 translate-x-2 bg-accent text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-medium"

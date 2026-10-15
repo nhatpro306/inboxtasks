@@ -86,7 +86,7 @@ export function Settings() {
     if (!geminiKey.trim()) return;
     setSavingGemini(true);
     try {
-      const updated = await api.putSettings({ gemini_key_masked: geminiKey } as Partial<ISettings>);
+      const updated = await api.putSettings({ gemini_key: geminiKey });
       setSettings(updated);
       setGeminiKey("");
       showToast("Gemini key saved.");
