@@ -3,14 +3,12 @@ import { runCycle } from "@inboxtasks/pipeline";
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      res.statusCode = 401;
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ error: "unauthorized" }));
-      return;
-    }
+  const authHeader = req.headers.authorization;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    res.statusCode = 401;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ error: "unauthorized" }));
+    return;
   }
 
   try {

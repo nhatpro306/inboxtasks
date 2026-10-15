@@ -1,18 +1,31 @@
+export function parseLocalDate(iso: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+  if (/^\d{4}-\d{2}-\d{2}T00:00:00(\.000)?Z?$/.test(iso)) {
+    const [datePart] = iso.split("T");
+    const [y, m, d] = datePart.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date(iso);
+}
+
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "";
-  const d = new Date(iso);
+  const d = parseLocalDate(iso);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 export function fmtDay(iso: string | null | undefined): string {
   if (!iso) return "";
-  const d = new Date(iso);
+  const d = parseLocalDate(iso);
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 export function isOverdue(iso: string | null | undefined): boolean {
   if (!iso) return false;
-  const d = new Date(iso);
+  const d = parseLocalDate(iso);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
@@ -21,7 +34,7 @@ export function isOverdue(iso: string | null | undefined): boolean {
 
 export function isToday(iso: string | null | undefined): boolean {
   if (!iso) return false;
-  const d = new Date(iso);
+  const d = parseLocalDate(iso);
   const today = new Date();
   return (
     d.getFullYear() === today.getFullYear() &&

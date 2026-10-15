@@ -28,6 +28,7 @@ export async function fetchNewEmails(opts: {
   });
 
   const out: FetchedEmail[] = [];
+  let maxUid = opts.lastSeenUid;
   await client.connect();
   try {
     const lock = await client.getMailboxLock("INBOX");
@@ -37,7 +38,14 @@ export async function fetchNewEmails(opts: {
       for await (const msg of (client as any).fetch({ uid: range }, { uid: true, source: true, envelope: true }, { uid: true }) as AsyncIterable<any>) {
         // IMAP returns the last message even when none are newer; guard against it.
         if (msg.uid <= opts.lastSeenUid) continue;
-        const parsed = await simpleParser(msg.source as Buffer);
+        let parsed;
+        try {
+          parsed = await simpleParser(msg.source as Buffer);
+        } catch (parseErr) {
+          console.error(`[imap] Failed to parse email uid=${msg.uid}: ${(parseErr as Error).message}`);
+          if (msg.uid > maxUid) maxUid = msg.uid;
+          continue;
+        }
         out.push({
           uid: msg.uid,
           messageId: parsed.messageId ?? msg.envelope?.messageId ?? null,

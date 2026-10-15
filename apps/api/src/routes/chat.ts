@@ -95,14 +95,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     // Save user message
     await prisma.chatMessage.create({ data: { userId, role: "user", content: message } });
 
-    // Load recent history (last 10 messages ascending, including the one just saved)
+    // Load recent history (last 10 messages, chronological order)
     const recentMessages = await prisma.chatMessage.findMany({
       where: { userId },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
       take: 10,
     });
-
-    const history = recentMessages.map((m) => ({ role: m.role, content: m.content }));
+    const history = recentMessages.reverse().map((m) => ({ role: m.role, content: m.content }));
     const tasksContext = await buildTasksContext(userId);
     const cfg = await loadLLMConfig(userId);
 

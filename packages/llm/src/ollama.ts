@@ -27,6 +27,7 @@ export class OllamaProvider implements LLMProvider {
     const res = await fetch(`${this.url}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(30000),
       body: JSON.stringify({
         model: this.model,
         stream: false,
@@ -47,6 +48,7 @@ export class OllamaProvider implements LLMProvider {
     const res = await fetch(`${this.url}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(30000),
       body: JSON.stringify({
         model: this.model,
         stream: false,
