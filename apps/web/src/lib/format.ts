@@ -40,3 +40,34 @@ export function urlBase64ToUint8Array(base64: string): Uint8Array {
   }
   return arr;
 }
+
+export function hasTime(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const trimmed = iso.trim();
+  if (!trimmed.includes("T") && !trimmed.includes(" ") && !trimmed.includes(":")) {
+    return false;
+  }
+  if (/[T ]00:00(:00(\.000)?)?(Z|[+-]\d{2}:?\d{2})?$/i.test(trimmed)) {
+    return false;
+  }
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) return false;
+  return d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0 || d.getHours() !== 0 || d.getMinutes() !== 0;
+}
+
+export function fmtTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+}
+
+export function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  if (!hasTime(iso)) return fmtDate(iso);
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${datePart} · ${fmtTime(iso)}`;
+}
+

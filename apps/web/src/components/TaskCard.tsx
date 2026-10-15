@@ -1,5 +1,8 @@
-import { Task } from "../lib/api.js";
-import { fmtDate, isOverdue } from "../lib/format.js";
+import { useState, useEffect } from "react";
+import { api, Task } from "../lib/api.js";
+import { appEvents } from "../lib/events.js";
+import { fmtDate, fmtTime, hasTime, isOverdue, isToday } from "../lib/format.js";
+import { parseSubtasks, serializeSubtasks } from "../lib/subtask.js";
 import { PriorityPill } from "./PriorityPill.js";
 
 export interface TaskCardProps {
@@ -9,8 +12,38 @@ export interface TaskCardProps {
 }
 
 export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
+  const [showAllSubtasks, setShowAllSubtasks] = useState(false);
+  const [optimisticDescription, setOptimisticDescription] = useState<string | null>(null);
+
+  useEffect(() => {
+    setOptimisticDescription(null);
+    setShowAllSubtasks(false);
+  }, [task.id, task.description]);
+
   const done = task.status === "done";
   const overdue = !done && isOverdue(task.due_date);
+
+  const rawDescription = optimisticDescription !== null ? optimisticDescription : task.description;
+  const { cleanDescription, subtasks, progressPercent, completedCount, totalCount } =
+    parseSubtasks(rawDescription);
+
+  const visibleSubtasks = showAllSubtasks ? subtasks : subtasks.slice(0, 3);
+
+  const handleToggleSubtask = async (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    const updatedSubtasks = subtasks.map((st, i) =>
+      i === index ? { ...st, completed: !st.completed } : st
+    );
+    const newDescription = serializeSubtasks(cleanDescription, updatedSubtasks);
+    setOptimisticDescription(newDescription);
+    try {
+      await api.patchTask(task.id, { description: newDescription });
+      appEvents.emit("tasks:changed");
+    } catch (err) {
+      setOptimisticDescription(null);
+      console.error("Failed to update subtask:", err);
+    }
+  };
 
   return (
     <div
@@ -78,17 +111,106 @@ export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
           </div>
         </div>
 
-        {task.description && (
+        {cleanDescription && (
           <p className="text-xs text-sub line-clamp-2 mt-1">
-            {task.description}
+            {cleanDescription}
           </p>
         )}
 
+        {subtasks.length > 0 && (
+          <div className="mt-2.5 space-y-1.5">
+            {/* Progress indicator */}
+            <div className="flex items-center justify-between text-xs text-sub">
+              <span>
+                {completedCount}/{totalCount} subtasks ({progressPercent}%)
+              </span>
+            </div>
+            <div className="w-full bg-border/50 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="h-full bg-accent transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            {/* Interactive subtask checklist */}
+            <div className="space-y-1 pt-1">
+              {visibleSubtasks.map((st) => {
+                const targetIndex = subtasks.findIndex((s) => s.id === st.id);
+                return (
+                  <div key={st.id} className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={st.completed}
+                      aria-label={`Mark subtask "${st.title}" ${st.completed ? "incomplete" : "complete"}`}
+                      className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${
+                        st.completed
+                          ? "bg-accent border-accent text-white"
+                          : "border-border hover:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
+                      }`}
+                      onClick={(e) => void handleToggleSubtask(e, targetIndex)}
+                    >
+                      {st.completed && (
+                        <svg
+                          aria-hidden="true"
+                          focusable="false"
+                          className="w-2.5 h-2.5 text-white"
+                          fill="none"
+                          viewBox="0 0 12 12"
+                        >
+                          <path
+                            d="M2 6l3 3 5-5"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                    <span
+                      className={`truncate text-xs transition-colors ${
+                        done || st.completed ? "line-through text-muted" : "text-sub"
+                      }`}
+                    >
+                      {st.title}
+                    </span>
+                  </div>
+                );
+              })}
+
+              {subtasks.length > 3 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAllSubtasks((prev) => !prev);
+                  }}
+                  className="text-xs text-sub hover:text-accent font-medium mt-0.5 focus:outline-none transition-colors"
+                  aria-expanded={showAllSubtasks}
+                  aria-label={
+                    showAllSubtasks
+                      ? "Show fewer subtasks"
+                      : `Show ${subtasks.length - 3} more subtasks`
+                  }
+                >
+                  {showAllSubtasks ? "Show less" : `+${subtasks.length - 3} more`}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Metadata badges footer */}
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           {task.due_date && (
             <span
               className={`text-xs inline-flex items-center gap-1 ${
-                overdue ? "text-danger font-medium" : "text-sub"
+                overdue
+                  ? "text-danger font-medium"
+                  : isToday(task.due_date)
+                  ? "text-accent font-medium"
+                  : "text-sub"
               }`}
             >
               {overdue && (
@@ -98,6 +220,23 @@ export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
                 </svg>
               )}
               {overdue ? "Overdue · " : ""}{fmtDate(task.due_date)}
+            </span>
+          )}
+          {hasTime(task.due_date) && (
+            <span className="text-xs inline-flex items-center gap-1 text-sub">
+              <svg
+                aria-hidden="true"
+                focusable="false"
+                className="w-3 h-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {fmtTime(task.due_date)}
             </span>
           )}
           {task.created_via === "ai" && (

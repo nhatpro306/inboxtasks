@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { useAppEventListener } from "../lib/events.js";
 import { Toast } from "./Toast.js";
+import { serializeSubtasks } from "../lib/subtask.js";
 
 function TodayIcon() {
   return (
@@ -63,15 +64,59 @@ interface CreateTaskModalProps {
 function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+  const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [newSubtaskInput, setNewSubtaskInput] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [saving, setSaving] = useState(false);
+
+  function handleAddSubtask() {
+    const trimmed = newSubtaskInput.trim();
+    if (!trimmed) return;
+    setSubtasks((prev) => [...prev, trimmed]);
+    setNewSubtaskInput("");
+  }
+
+  function handleSubtaskKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddSubtask();
+    }
+  }
+
+  function handleRemoveSubtask(index: number) {
+    setSubtasks((prev) => prev.filter((_, idx) => idx !== index));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
     setSaving(true);
     try {
-      await api.createTask({ title: title.trim(), due_date: dueDate || null, priority });
+      let due_date: string | null = null;
+      if (dueDate) {
+        if (dueTime) {
+          const d = new Date(`${dueDate}T${dueTime}:00`);
+          due_date = isNaN(d.getTime()) ? dueDate : d.toISOString();
+        } else {
+          due_date = dueDate;
+        }
+      }
+
+      let description: string | undefined = undefined;
+      if (subtasks.length > 0) {
+        description = serializeSubtasks(
+          "",
+          subtasks.map((s, idx) => ({ id: `sub-${idx}`, title: s, completed: false }))
+        );
+      }
+
+      await api.createTask({
+        title: title.trim(),
+        due_date,
+        priority,
+        description,
+      });
       onCreated();
       onClose();
     } catch {
@@ -93,7 +138,7 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
       aria-labelledby="new-task-title"
     >
       <div
-        className="bg-card rounded-card shadow-card border border-border w-full max-w-md p-6"
+        className="bg-card rounded-card shadow-card border border-border w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -112,17 +157,31 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
-          <div>
-            <label htmlFor="new-task-due" className="text-xs font-medium text-sub mb-1 block">
-              Due date
-            </label>
-            <input
-              id="new-task-due"
-              type="date"
-              className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="new-task-due" className="text-xs font-medium text-sub mb-1 block">
+                Due date
+              </label>
+              <input
+                id="new-task-due"
+                type="date"
+                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="new-task-time" className="text-xs font-medium text-sub mb-1 block">
+                Time
+              </label>
+              <input
+                id="new-task-time"
+                type="time"
+                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+              />
+            </div>
           </div>
           <div>
             <label htmlFor="new-task-priority" className="text-xs font-medium text-sub mb-1 block">
@@ -138,6 +197,52 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
               <option value="medium">Medium priority</option>
               <option value="high">High priority</option>
             </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-sub mb-1 block">
+              Subtasks / Checklist
+            </label>
+            {subtasks.length > 0 && (
+              <ul className="mb-2 flex flex-col gap-1.5 max-h-36 overflow-y-auto">
+                {subtasks.map((st, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-btn bg-bg text-sm border border-border/60"
+                  >
+                    <span className="truncate text-text text-xs flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent inline-block" aria-hidden="true" />
+                      {st}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSubtask(idx)}
+                      aria-label={`Remove subtask "${st}"`}
+                      className="text-muted hover:text-danger p-0.5 rounded transition-colors text-xs font-semibold"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Add a subtask..."
+                value={newSubtaskInput}
+                onChange={(e) => setNewSubtaskInput(e.target.value)}
+                onKeyDown={handleSubtaskKeyDown}
+                className="text-sm border border-border rounded-btn px-3 py-1.5 flex-1 focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg"
+              />
+              <button
+                type="button"
+                onClick={handleAddSubtask}
+                disabled={!newSubtaskInput.trim()}
+                className="text-xs bg-accent-tint text-accent font-medium px-3 py-1.5 rounded-btn hover:bg-accent/20 disabled:opacity-40 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
           </div>
           <div className="flex gap-2 pt-1">
             <button

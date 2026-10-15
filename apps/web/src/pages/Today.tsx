@@ -4,8 +4,9 @@ import { api, Task } from "../lib/api.js";
 import { TaskCard } from "../components/TaskCard.js";
 import { TaskCardSkeleton } from "../components/Skeleton.js";
 import { Toast } from "../components/Toast.js";
-import { isOverdue, isToday } from "../lib/format.js";
+import { isOverdue, isToday, hasTime } from "../lib/format.js";
 import { useAppEventListener, appEvents } from "../lib/events.js";
+import { parseSubtasks, serializeSubtasks, SubtaskItem } from "../lib/subtask.js";
 
 interface EditTaskModalProps {
   task: Task;
@@ -16,21 +17,99 @@ interface EditTaskModalProps {
 
 function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalProps) {
   const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [dueDate, setDueDate] = useState(task.due_date ?? "");
+  const parsed = parseSubtasks(task.description);
+  const [cleanDesc, setCleanDesc] = useState(parsed.cleanDescription);
+  const [subtaskItems, setSubtaskItems] = useState<SubtaskItem[]>(parsed.subtasks);
+  const [newSubtaskInput, setNewSubtaskInput] = useState("");
+
+  const initialDueDate = task.due_date
+    ? hasTime(task.due_date)
+      ? (() => {
+          const d = new Date(task.due_date);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          return `${y}-${m}-${day}`;
+        })()
+      : task.due_date.slice(0, 10)
+    : "";
+
+  const initialDueTime =
+    task.due_date && hasTime(task.due_date)
+      ? (() => {
+          const d = new Date(task.due_date);
+          return isNaN(d.getTime())
+            ? ""
+            : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        })()
+      : "";
+
+  const [dueDate, setDueDate] = useState(initialDueDate);
+  const [dueTime, setDueTime] = useState(initialDueTime);
   const [priority, setPriority] = useState<"low" | "medium" | "high">(task.priority);
   const [status, setStatus] = useState(task.status);
   const [saving, setSaving] = useState(false);
+
+  function handleToggleSubtask(id: string) {
+    setSubtaskItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item))
+    );
+  }
+
+  function handleUpdateSubtaskTitle(id: string, newTitle: string) {
+    setSubtaskItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, title: newTitle } : item))
+    );
+  }
+
+  function handleRemoveSubtask(id: string) {
+    setSubtaskItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function handleAddSubtask() {
+    const trimmed = newSubtaskInput.trim();
+    if (!trimmed) return;
+    const newItem: SubtaskItem = {
+      id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      title: trimmed,
+      completed: false,
+    };
+    setSubtaskItems((prev) => [...prev, newItem]);
+    setNewSubtaskInput("");
+  }
+
+  function handleSubtaskKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddSubtask();
+    }
+  }
+
+  const totalCount = subtaskItems.length;
+  const completedCount = subtaskItems.filter((s) => s.completed).length;
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   async function handleSave(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (!title.trim()) return;
     setSaving(true);
     try {
+      let finalDueDate: string | null = null;
+      if (dueDate) {
+        if (dueTime) {
+          const d = new Date(`${dueDate}T${dueTime}:00`);
+          finalDueDate = isNaN(d.getTime()) ? dueDate : d.toISOString();
+        } else {
+          finalDueDate = dueDate;
+        }
+      }
+
+      const finalDescription = serializeSubtasks(cleanDesc, subtaskItems);
+
       const updated = await api.patchTask(task.id, {
         title: title.trim(),
-        description: description.trim() || null,
-        due_date: dueDate || null,
+        description: finalDescription.trim() || null,
+        due_date: finalDueDate,
         priority,
         status,
       });
@@ -65,7 +144,7 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
       aria-labelledby="edit-task-heading"
     >
       <div
-        className="bg-card rounded-card shadow-card border border-border w-full max-w-lg p-6"
+        className="bg-card rounded-card shadow-card border border-border w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -100,8 +179,8 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
               id="edit-description"
               className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
               rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={cleanDesc}
+              onChange={(e) => setCleanDesc(e.target.value)}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -116,6 +195,18 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
               />
             </div>
             <div>
+              <label htmlFor="edit-time" className="text-xs font-medium text-sub mb-1 block">Time</label>
+              <input
+                id="edit-time"
+                type="time"
+                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
               <label htmlFor="edit-priority" className="text-xs font-medium text-sub mb-1 block">Priority</label>
               <select
                 id="edit-priority"
@@ -128,19 +219,100 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
                 <option value="high">High</option>
               </select>
             </div>
+            <div>
+              <label htmlFor="edit-status" className="text-xs font-medium text-sub mb-1 block">Status</label>
+              <select
+                id="edit-status"
+                className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <option value="accepted">Accepted</option>
+                <option value="in_progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label htmlFor="edit-status" className="text-xs font-medium text-sub mb-1 block">Status</label>
-            <select
-              id="edit-status"
-              className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
+
+          {/* Subtasks Builder & Progress Section */}
+          <div className="border-t border-border/60 pt-3 mt-1">
+            <div className="flex items-center justify-between text-xs text-sub mb-1.5">
+              <span className="font-medium text-text">Subtasks / Checklist</span>
+              <span className="text-muted">
+                {`${completedCount}/${totalCount} subtasks (${progressPercent}%)`}
+              </span>
+            </div>
+            <div
+              className="w-full bg-border/60 rounded-full h-1.5 overflow-hidden mb-3"
+              role="progressbar"
+              aria-valuenow={progressPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Subtasks completion progress"
             >
-              <option value="accepted">Accepted</option>
-              <option value="in_progress">In Progress</option>
-              <option value="done">Done</option>
-            </select>
+              <div
+                className="bg-accent h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            {subtaskItems.length > 0 && (
+              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto mb-2 pr-0.5">
+                {subtaskItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={item.completed}
+                      onChange={() => handleToggleSubtask(item.id)}
+                      className="rounded border-border text-accent focus:ring-accent/30 h-4 w-4 flex-shrink-0 cursor-pointer"
+                      aria-label={`Toggle subtask ${item.title}`}
+                    />
+                    <input
+                      type="text"
+                      value={item.title}
+                      onChange={(e) => handleUpdateSubtaskTitle(item.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      className={`text-sm border border-border rounded-btn px-2.5 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors ${
+                        item.completed ? "line-through text-muted" : "text-text"
+                      }`}
+                      aria-label="Subtask title"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSubtask(item.id)}
+                      aria-label={`Remove subtask "${item.title}"`}
+                      className="text-muted hover:text-danger p-1 rounded transition-colors text-xs font-semibold flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Add a subtask..."
+                value={newSubtaskInput}
+                onChange={(e) => setNewSubtaskInput(e.target.value)}
+                onKeyDown={handleSubtaskKeyDown}
+                className="text-sm border border-border rounded-btn px-3 py-1.5 flex-1 focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg"
+              />
+              <button
+                type="button"
+                onClick={handleAddSubtask}
+                disabled={!newSubtaskInput.trim()}
+                className="text-xs bg-accent-tint text-accent font-medium px-3 py-1.5 rounded-btn hover:bg-accent/20 disabled:opacity-40 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-2 mt-4 pt-1">
