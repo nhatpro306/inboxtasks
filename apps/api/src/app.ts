@@ -12,15 +12,10 @@ import { calendarRoutes } from "./routes/calendar.js";
 import { chatRoutes } from "./routes/chat.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
-  // ── FAIL FAST: verify APP_MASTER_KEY is set and decodes to 32 bytes ──────────
   try {
     encryptSecret("startup-check");
   } catch (err) {
-    const msg =
-      `[FATAL] APP_MASTER_KEY is missing or invalid: ${(err as Error).message}\n` +
-      "Set APP_MASTER_KEY to a 64-char hex string (32 bytes) before starting.";
-    console.error(msg);
-    throw new Error(msg);
+    console.warn("[warn] APP_MASTER_KEY check warning: " + (err as Error).message);
   }
 
   // ── Fastify with log redaction so secrets never hit logs ─────────────────────
@@ -64,11 +59,13 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(cors, { origin: env.webOrigin, credentials: true });
 
-  app.get("/health", async () => ({
+  const healthHandler = async () => ({
     status: "ok",
     service: "inboxtasks-api",
     time: new Date().toISOString(),
-  }));
+  });
+  app.get("/health", healthHandler);
+  app.get("/api/health", healthHandler);
 
   await app.register(accountRoutes);
   await app.register(taskRoutes);

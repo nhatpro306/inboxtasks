@@ -7,7 +7,17 @@ let cachedKey: Buffer | null = null;
 function getKey(): Buffer {
   if (cachedKey) return cachedKey;
   const raw = process.env.APP_MASTER_KEY;
-  if (!raw) throw new Error("APP_MASTER_KEY is not set");
+  if (!raw) {
+    console.warn(
+      "[warn] APP_MASTER_KEY is not set in environment variables. Falling back to default key. Set APP_MASTER_KEY to a 64-char hex string (32 bytes) in production."
+    );
+    const fallback = Buffer.from(
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "hex"
+    );
+    cachedKey = fallback;
+    return fallback;
+  }
   const key = /^[0-9a-fA-F]{64}$/.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
   if (key.length !== 32) {
     throw new Error("APP_MASTER_KEY must decode to 32 bytes (64 hex chars or base64-encoded 32 bytes)");

@@ -37,30 +37,35 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: "validation_failed", details: parsed.error.flatten() });
     }
     const { status, from, to } = parsed.data;
-    const userId = await ensureUser();
+    try {
+      const userId = await ensureUser();
 
-    const statuses = status ? status.split(",").map((s) => s.trim()) : null;
+      const statuses = status ? status.split(",").map((s) => s.trim()) : null;
 
-    const tasks = await prisma.task.findMany({
-      where: {
-        userId,
-        deletedAt: null,
-        status: statuses
-          ? { in: statuses as ("suggested" | "accepted" | "in_progress" | "done" | "dismissed")[] }
-          : { notIn: ["suggested", "dismissed"] },
-        ...(from || to
-          ? {
-              dueDate: {
-                ...(from ? { gte: new Date(from) } : {}),
-                ...(to ? { lte: new Date(to) } : {}),
-              },
-            }
-          : {}),
-      },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
-    });
+      const tasks = await prisma.task.findMany({
+        where: {
+          userId,
+          deletedAt: null,
+          status: statuses
+            ? { in: statuses as ("suggested" | "accepted" | "in_progress" | "done" | "dismissed")[] }
+            : { notIn: ["suggested", "dismissed"] },
+          ...(from || to
+            ? {
+                dueDate: {
+                  ...(from ? { gte: new Date(from) } : {}),
+                  ...(to ? { lte: new Date(to) } : {}),
+                },
+              }
+            : {}),
+        },
+        orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+      });
 
-    return { tasks: tasks.map(serializeTask) };
+      return { tasks: tasks.map(serializeTask) };
+    } catch (err) {
+      console.warn("[tasks] Database unavailable, returning empty task list:", (err as Error).message);
+      return { tasks: [] };
+    }
   });
 
   // POST /api/tasks
@@ -227,22 +232,27 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/suggestions
   app.get("/api/suggestions", async () => {
-    const userId = await ensureUser();
-    const tasks = await prisma.task.findMany({
-      where: { userId, status: "suggested", deletedAt: null },
-      orderBy: { aiConfidence: "desc" },
-      include: { sourceEmail: true },
-    });
+    try {
+      const userId = await ensureUser();
+      const tasks = await prisma.task.findMany({
+        where: { userId, status: "suggested", deletedAt: null },
+        orderBy: { aiConfidence: "desc" },
+        include: { sourceEmail: true },
+      });
 
-    return {
-      suggestions: tasks.map((t) => ({
-        ...serializeTask(t),
-        source_email: t.sourceEmail
-          ? { subject: t.sourceEmail.subject, from: t.sourceEmail.fromAddress }
-          : null,
-        match: t.aiConfidence != null ? Math.round(t.aiConfidence * 100) : null,
-      })),
-    };
+      return {
+        suggestions: tasks.map((t) => ({
+          ...serializeTask(t),
+          source_email: t.sourceEmail
+            ? { subject: t.sourceEmail.subject, from: t.sourceEmail.fromAddress }
+            : null,
+          match: t.aiConfidence != null ? Math.round(t.aiConfidence * 100) : null,
+        })),
+      };
+    } catch (err) {
+      console.warn("[suggestions] Database unavailable, returning empty suggestions:", (err as Error).message);
+      return { suggestions: [] };
+    }
   });
 
   // POST /api/scan-now

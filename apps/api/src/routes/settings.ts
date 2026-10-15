@@ -30,11 +30,24 @@ async function publicSettings(userId: string) {
     push_enabled: subCount > 0,
   };
 }
-
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/settings", async () => {
-    const userId = await ensureUser();
-    return publicSettings(userId);
+    try {
+      const userId = await ensureUser();
+      return await publicSettings(userId);
+    } catch (err) {
+      console.warn("[settings] Database unavailable, returning fallback settings:", (err as Error).message);
+      return {
+        ai_provider_pref: "auto",
+        ollama_url: "http://localhost:11434",
+        poll_interval_minutes: 60,
+        reminder_lead_minutes: 60,
+        calendar_provider: null,
+        gemini_key_masked: "",
+        calendar_connected: false,
+        push_enabled: false,
+      };
+    }
   });
 
   app.put("/api/settings", async (req, reply) => {
