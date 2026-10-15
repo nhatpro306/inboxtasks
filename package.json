@@ -2,6 +2,7 @@
   "name": "inboxtasks",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "InboxTasks — single-user PWA that turns email into reviewable to-do items.",
   "workspaces": [
     "packages/*",
