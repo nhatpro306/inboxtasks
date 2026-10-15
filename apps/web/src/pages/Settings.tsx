@@ -6,6 +6,17 @@ import { Toast } from "../components/Toast.js";
 import { enablePush, disablePush } from "../lib/push.js";
 import { fmtDate } from "../lib/format.js";
 
+const DEFAULT_SETTINGS: ISettings = {
+  ai_provider_pref: "auto",
+  ollama_url: "http://localhost:11434",
+  poll_interval_minutes: 60,
+  reminder_lead_minutes: 60,
+  calendar_provider: null,
+  gemini_key_masked: "",
+  calendar_connected: false,
+  push_enabled: false,
+};
+
 export function Settings() {
   const [settings, setSettings] = useState<ISettings | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -54,8 +65,12 @@ export function Settings() {
       setSettings(s);
       setPollMin(String(s.poll_interval_minutes));
       setReminderMin(String(s.reminder_lead_minutes));
+      setError(null);
     } catch {
-      setError("Failed to load settings. Check that the API is running.");
+      setSettings(DEFAULT_SETTINGS);
+      setPollMin(String(DEFAULT_SETTINGS.poll_interval_minutes));
+      setReminderMin(String(DEFAULT_SETTINGS.reminder_lead_minutes));
+      setError("Unable to reach the API server. Showing offline default settings — check that the API is running.");
     } finally {
       setLoading(false);
     }
@@ -76,8 +91,8 @@ export function Settings() {
       const updated = await api.putSettings({ ai_provider_pref: val });
       setSettings(updated);
       showToast("AI provider updated.");
-    } catch {
-      showToast("Failed to update AI provider.");
+    } catch (err) {
+      showToast("Failed to save settings: " + (err as Error).message);
     }
   }
 
@@ -90,8 +105,8 @@ export function Settings() {
       setSettings(updated);
       setGeminiKey("");
       showToast("Gemini key saved.");
-    } catch {
-      showToast("Failed to save Gemini key.");
+    } catch (err) {
+      showToast("Failed to save settings: " + (err as Error).message);
     } finally {
       setSavingGemini(false);
     }
@@ -107,8 +122,8 @@ export function Settings() {
       });
       setSettings(updated);
       showToast("Scan settings saved.");
-    } catch {
-      showToast("Failed to save scan settings.");
+    } catch (err) {
+      showToast("Failed to save settings: " + (err as Error).message);
     } finally {
       setSavingPoll(false);
     }
@@ -133,8 +148,8 @@ export function Settings() {
           showToast("Permission denied. Enable in browser settings.");
         }
       }
-    } catch {
-      showToast("Failed to toggle notifications.");
+    } catch (err) {
+      showToast("Failed to save settings: " + (err as Error).message);
     } finally {
       setTogglingPush(false);
     }
@@ -203,24 +218,25 @@ export function Settings() {
     );
   }
 
-  if (error) {
-    return (
-      <div role="alert" className="flex flex-col items-center justify-center py-20 text-center gap-3">
-        <p className="text-danger text-sm font-medium">{error}</p>
-        <button
-          type="button"
-          onClick={() => { setError(null); setLoading(true); void Promise.all([loadSettings(), loadAccounts()]); }}
-          className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-2xl">
       <h1 className="text-lg font-semibold mb-5">Settings</h1>
+
+      {error && (
+        <div role="alert" className="mb-5 p-4 rounded-card bg-amber/10 border border-amber/30 text-text flex items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="text-base text-amber">⚠️</span>
+            <span className="text-sub font-medium">{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setLoading(true); void Promise.all([loadSettings(), loadAccounts()]); }}
+            className="text-xs bg-accent text-white font-medium px-3 py-1.5 rounded-btn hover:bg-accent/90 transition-colors flex-shrink-0"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-6">
         {/* 1. AI Provider */}

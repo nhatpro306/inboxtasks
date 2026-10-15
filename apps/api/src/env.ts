@@ -7,6 +7,6 @@ config({ path: resolve(import.meta.dirname, "../../../.env") });
 
 export const env = {
   port: Number(process.env.API_PORT ?? 3001),
-  host: process.env.API_HOST ?? "127.0.0.1",
+  host: process.env.API_HOST ?? "0.0.0.0",
   webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
 };
