@@ -6,65 +6,20 @@ import { Toast } from "./Toast.js";
 import { serializeSubtasks, parseSubtasks, SubtaskItem } from "../lib/subtask.js";
 import { hasTime } from "../lib/format.js";
 import { CommandPalette } from "./CommandPalette.js";
-
-function TodayIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <rect x="3" y="4" width="18" height="18" rx="3" strokeLinecap="round" />
-      <path d="M3 9h18M8 2v4M16 2v4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function AllTasksIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <rect x="3" y="4" width="18" height="18" rx="3" strokeLinecap="round" />
-      <path d="M3 9h18M8 2v4M16 2v4M8 13h2M12 13h2M16 13h2M8 17h2M12 17h2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ReviewIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChatIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function AnalyticsIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path d="M18 20V10M12 20V4M6 20v-6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+import {
+  TodayIcon,
+  AllTasksIcon,
+  CalendarIcon,
+  ReviewIcon,
+  AnalyticsIcon,
+  ChatIcon,
+  SettingsIcon,
+  BrandLogo,
+  PlusIcon,
+  SearchIcon,
+  RefreshIcon,
+  SpinnerIcon,
+} from "./Icons.js";
 
 interface CreateTaskModalProps {
   onClose: () => void;
@@ -772,12 +727,15 @@ export function AppShell() {
       {/* ─── DESKTOP: Left sidebar ─── */}
       <aside className="hidden lg:flex flex-col w-60 flex-shrink-0 bg-card border-r border-border min-h-screen">
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-border">
-          <div className="flex items-center gap-2">
-            <div aria-hidden="true" className="w-8 h-8 rounded-btn bg-accent-tint text-accent grid place-items-center font-bold text-sm">
-              IT
+        <div className="px-5 py-4 border-b border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <BrandLogo className="w-7 h-7 flex-shrink-0" />
+              <span className="font-bold text-base tracking-tight text-text">InboxTasks</span>
             </div>
-            <span className="font-semibold text-text">InboxTasks</span>
+            <span className="text-[10px] font-semibold bg-accent-tint text-accent border border-accent/20 px-1.5 py-0.5 rounded-pill">
+              v0.1 Pro
+            </span>
           </div>
         </div>
 
@@ -787,11 +745,9 @@ export function AppShell() {
             type="button"
             aria-label="Create new task"
             onClick={() => setShowCreateModal(true)}
-            className="w-full bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors flex items-center justify-center gap-1.5"
+            className="w-full bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
           >
-            <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-            </svg>
+            <PlusIcon className="w-4 h-4" />
             New task
           </button>
         </div>
@@ -840,14 +796,12 @@ export function AppShell() {
       {/* ─── DESKTOP: Main column (topbar + content) ─── */}
       <div className="hidden lg:flex flex-1 flex-col min-h-screen">
         {/* Top bar */}
-        <header className="bg-card border-b border-border px-6 py-3 flex items-center gap-4">
+        <header className="glass-header sticky top-0 z-30 border-b border-border shadow-subtle px-6 py-3 flex items-center gap-4">
           <form onSubmit={handleSearchSubmit} className="flex-1 max-w-sm">
             <label htmlFor="global-search" className="sr-only">Search tasks</label>
             <div className="relative flex items-center">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
-                <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <SearchIcon className="w-4 h-4" />
               </span>
               <input
                 ref={searchInputRef}
@@ -893,11 +847,10 @@ export function AppShell() {
             aria-busy={scanning}
             className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors flex items-center gap-1.5"
           >
-            {scanning && (
-              <svg aria-hidden="true" className="animate-spin h-3.5 w-3.5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+            {scanning ? (
+              <SpinnerIcon className="w-3.5 h-3.5 text-accent" />
+            ) : (
+              <RefreshIcon className="w-3.5 h-3.5" />
             )}
             <span>{scanning ? "Scanning…" : "Scan now"}</span>
           </button>
@@ -918,12 +871,13 @@ export function AppShell() {
       {/* ─── MOBILE ─── */}
       <div className="flex flex-col flex-1 lg:hidden">
         {/* Mobile top header */}
-        <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <header className="glass-header sticky top-0 z-30 border-b border-border shadow-subtle px-4 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
-            <div aria-hidden="true" className="w-7 h-7 rounded-btn bg-accent-tint text-accent grid place-items-center font-bold text-xs">
-              IT
-            </div>
-            <span className="font-semibold text-text text-sm">InboxTasks</span>
+            <BrandLogo className="w-6 h-6 flex-shrink-0" />
+            <span className="font-bold text-text text-sm tracking-tight">InboxTasks</span>
+            <span className="text-[9px] font-semibold bg-accent-tint text-accent border border-accent/20 px-1 py-0.5 rounded-pill">
+              v0.1 Pro
+            </span>
           </div>
           <button
             type="button"
@@ -933,11 +887,10 @@ export function AppShell() {
             aria-busy={scanning}
             className="text-xs bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors flex items-center gap-1.5"
           >
-            {scanning && (
-              <svg aria-hidden="true" className="animate-spin h-3 w-3 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+            {scanning ? (
+              <SpinnerIcon className="w-3 h-3 text-accent" />
+            ) : (
+              <RefreshIcon className="w-3 h-3" />
             )}
             <span>{scanning ? "Scanning…" : "Scan now"}</span>
           </button>

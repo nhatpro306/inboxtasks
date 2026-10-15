@@ -8,7 +8,7 @@ import * as google from "../lib/google.js";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-async function loadLLMConfig(userId: string): Promise<LLMConfig> {
+async function loadLLMConfig(userId: string, headerKey?: string): Promise<LLMConfig> {
   const settings = await prisma.settings.findUnique({ where: { userId } });
   let geminiApiKey = process.env.GEMINI_API_KEY ?? "";
   if (settings?.geminiKeyRef) {
@@ -17,6 +17,9 @@ async function loadLLMConfig(userId: string): Promise<LLMConfig> {
     } catch {
       /* fall back to env key */
     }
+  }
+  if (!geminiApiKey && headerKey && headerKey.trim()) {
+    geminiApiKey = headerKey.trim();
   }
   return {
     pref: (settings?.aiProviderPref ?? process.env.AI_PROVIDER_PREF ?? "auto") as LLMConfig["pref"],
@@ -91,6 +94,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
 
     const userId = await ensureUser();
     const { message } = parsed.data;
+    const headerKey = req.headers["x-gemini-key"] as string | undefined;
 
     // Save user message
     await prisma.chatMessage.create({ data: { userId, role: "user", content: message } });
@@ -103,7 +107,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     });
     const history = recentMessages.reverse().map((m) => ({ role: m.role, content: m.content }));
     const tasksContext = await buildTasksContext(userId);
-    const cfg = await loadLLMConfig(userId);
+    const cfg = await loadLLMConfig(userId, headerKey);
 
     const { reply: aiReply, proposed_action } = await chatWithActions(cfg, history, tasksContext);
 

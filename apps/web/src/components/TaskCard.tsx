@@ -4,6 +4,7 @@ import { appEvents } from "../lib/events.js";
 import { fmtDate, fmtTime, hasTime, isOverdue, isToday } from "../lib/format.js";
 import { parseSubtasks, serializeSubtasks } from "../lib/subtask.js";
 import { PriorityPill } from "./PriorityPill.js";
+import { ClockIcon, CheckIcon } from "./Icons.js";
 
 export interface TaskCardProps {
   task: Task;
@@ -47,7 +48,7 @@ export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
 
   return (
     <div
-      className="bg-card rounded-card shadow-card border border-border hover:border-accent/30 p-4 flex gap-3 cursor-pointer hover:shadow-md transition-all duration-150"
+      className="bg-card rounded-card shadow-card border border-border hover:border-accent/40 hover:shadow-card-hover transition-all duration-200 p-4 flex gap-3 cursor-pointer"
       onClick={(e) => {
         if (onClick && !(e.target as HTMLElement).closest("button")) {
           onClick(task);
@@ -60,9 +61,9 @@ export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
         role="checkbox"
         aria-checked={done}
         aria-label={`Mark "${task.title}" ${done ? "not done" : "done"}`}
-        className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors mt-0.5 ${
+        className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 mt-0.5 ${
           done
-            ? "bg-accent border-accent"
+            ? "bg-accent border-accent scale-100"
             : "border-border hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
         }`}
         onClick={(e) => {
@@ -71,21 +72,10 @@ export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
         }}
       >
         {done && (
-          <svg
-            aria-hidden="true"
-            focusable="false"
-            className="w-3 h-3 text-white"
-            fill="none"
-            viewBox="0 0 12 12"
-          >
-            <path
-              d="M2 6l3 3 5-5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <CheckIcon
+            className="w-3 h-3 text-white animate-fade-in transition-transform duration-200 scale-100"
+            strokeWidth={2.5}
+          />
         )}
       </button>
 
@@ -159,21 +149,10 @@ export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
                       onClick={(e) => void handleToggleSubtask(e, targetIndex)}
                     >
                       {st.completed && (
-                        <svg
-                          aria-hidden="true"
-                          focusable="false"
-                          className="w-2.5 h-2.5 text-white"
-                          fill="none"
-                          viewBox="0 0 12 12"
-                        >
-                          <path
-                            d="M2 6l3 3 5-5"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        <CheckIcon
+                          className="w-2.5 h-2.5 text-white animate-fade-in"
+                          strokeWidth={2.5}
+                        />
                       )}
                     </button>
                     <span
@@ -232,18 +211,7 @@ export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
           )}
           {hasTime(task.due_date) && (
             <span className="text-xs inline-flex items-center gap-1 text-sub">
-              <svg
-                aria-hidden="true"
-                focusable="false"
-                className="w-3 h-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <ClockIcon className="w-3 h-3 text-sub" />
               {fmtTime(task.due_date)}
             </span>
           )}

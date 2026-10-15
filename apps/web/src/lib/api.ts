@@ -1,11 +1,33 @@
 const BASE = import.meta.env.VITE_API_URL || "";
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
+  const headers = new Headers(opts?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...opts,
+    headers,
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+
+  if (!res.ok) {
+    let errorMsg = `${res.status} ${res.statusText}`;
+    try {
+      const json = await res.json();
+      if (json && typeof json === "object") {
+        if (typeof json.error === "string" && json.error.trim()) {
+          errorMsg = json.error;
+        } else if (typeof json.message === "string" && json.message.trim()) {
+          errorMsg = json.message;
+        }
+      }
+    } catch {
+      // not JSON or body already read
+    }
+    throw new Error(errorMsg);
+  }
+
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
@@ -125,8 +147,26 @@ export const api = {
 
   getSettings: () => req<Settings>("/api/settings"),
 
-  putSettings: (b: SettingsUpdate) =>
-    req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(b) }),
+  putSettings: (b: SettingsUpdate) => {
+    if (b.gemini_key !== undefined) {
+      if (b.gemini_key.trim()) {
+        try {
+          localStorage.setItem("inboxtasks_gemini_key", b.gemini_key.trim());
+        } catch {}
+      } else {
+        try {
+          localStorage.removeItem("inboxtasks_gemini_key");
+        } catch {}
+      }
+    }
+    return req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(b) });
+  },
+
+  testGeminiKey: (gemini_key: string): Promise<{ ok: boolean; error?: string }> =>
+    req<{ ok: boolean; error?: string }>("/api/settings/test-gemini", {
+      method: "POST",
+      body: JSON.stringify({ gemini_key }),
+    }),
 
   listAccounts: async (): Promise<Account[]> => {
     const data = await req<{ accounts?: Account[] } | Account[]>("/api/accounts");
@@ -174,11 +214,18 @@ export const api = {
 
   chatHistory: () => req<{ messages: ChatMessage[] }>("/api/chat/history"),
 
-  chat: (message: string) =>
-    req<{ reply: string; proposed_action: ProposedAction | null }>("/api/chat", {
+  chat: (message: string) => {
+    const cachedKey = typeof localStorage !== "undefined" ? localStorage.getItem("inboxtasks_gemini_key") : null;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (cachedKey) {
+      headers["x-gemini-key"] = cachedKey;
+    }
+    return req<{ reply: string; proposed_action: ProposedAction | null }>("/api/chat", {
       method: "POST",
+      headers,
       body: JSON.stringify({ message }),
-    }),
+    });
+  },
 
   chatConfirm: (action: ProposedAction) =>
     req<{ ok: boolean; task: Task }>("/api/chat/confirm", {

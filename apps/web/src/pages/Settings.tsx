@@ -5,6 +5,22 @@ import { Segmented } from "../components/Segmented.js";
 import { Toast } from "../components/Toast.js";
 import { enablePush, disablePush } from "../lib/push.js";
 import { fmtDate } from "../lib/format.js";
+import {
+  KeyIcon,
+  EyeIcon,
+  EyeOffIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
+  SpinnerIcon,
+  RefreshIcon,
+  SparklesIcon,
+  ShieldIcon,
+  GoogleIcon,
+  GmailIcon,
+  ExternalLinkIcon,
+  TrashIcon,
+  BrandLogo,
+} from "../components/Icons.js";
 
 const DEFAULT_SETTINGS: ISettings = {
   ai_provider_pref: "auto",
@@ -36,6 +52,10 @@ export function Settings() {
   // Gemini key
   const [geminiKey, setGeminiKey] = useState("");
   const [savingGemini, setSavingGemini] = useState(false);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [testingKey, setTestingKey] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [clearingKey, setClearingKey] = useState(false);
 
   // Scan settings
   const [pollMin, setPollMin] = useState("15");
@@ -96,12 +116,14 @@ export function Settings() {
     }
   }
 
-  async function handleSaveGemini(e: React.FormEvent) {
-    e.preventDefault();
-    if (!geminiKey.trim()) return;
+  async function handleSaveGemini(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const trimmed = geminiKey.trim();
+    if (!trimmed) return;
     setSavingGemini(true);
+    setTestResult(null);
     try {
-      const updated = await api.putSettings({ gemini_key: geminiKey });
+      const updated = await api.putSettings({ gemini_key: trimmed });
       setSettings(updated);
       setGeminiKey("");
       showToast("Gemini key saved.");
@@ -109,6 +131,51 @@ export function Settings() {
       showToast("Failed to save settings: " + (err as Error).message);
     } finally {
       setSavingGemini(false);
+    }
+  }
+
+  async function handleTestGemini() {
+    const localKey = typeof localStorage !== "undefined" ? localStorage.getItem("inboxtasks_gemini_key") : null;
+    const keyToTest = geminiKey.trim() || localKey || "";
+    if (!keyToTest) {
+      setTestResult({ ok: false, message: "Please enter a Gemini API key first" });
+      return;
+    }
+    setTestingKey(true);
+    setTestResult(null);
+    try {
+      const res = await api.testGeminiKey(keyToTest);
+      if (res.ok) {
+        setTestResult({ ok: true, message: "Key is valid!" });
+      } else {
+        setTestResult({
+          ok: false,
+          message: res.error ? `Invalid key: ${res.error}` : "Invalid key: verification failed",
+        });
+      }
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        message: `Invalid key: ${(err as Error).message}`,
+      });
+    } finally {
+      setTestingKey(false);
+    }
+  }
+
+  async function handleRemoveGemini() {
+    if (!confirm("Remove saved Gemini API key?")) return;
+    setClearingKey(true);
+    setTestResult(null);
+    try {
+      const updated = await api.putSettings({ gemini_key: "" });
+      setSettings(updated);
+      setGeminiKey("");
+      showToast("Gemini key removed.");
+    } catch (err) {
+      showToast("Failed to remove key: " + (err as Error).message);
+    } finally {
+      setClearingKey(false);
     }
   }
 
@@ -210,6 +277,9 @@ export function Settings() {
     }
   }
 
+  const localKey = typeof localStorage !== "undefined" ? localStorage.getItem("inboxtasks_gemini_key") : null;
+  const isKeyConfigured = Boolean(settings?.gemini_key_masked || localKey);
+
   if (loading) {
     return (
       <div role="status" aria-live="polite" className="text-sub text-sm py-10 text-center">
@@ -220,28 +290,38 @@ export function Settings() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-lg font-semibold mb-5">Settings</h1>
+      <div className="flex items-center gap-2.5 mb-6">
+        <BrandLogo className="w-6 h-6 text-accent flex-shrink-0" />
+        <h1 className="text-xl font-bold text-text tracking-tight">Settings</h1>
+      </div>
 
       {error && (
-        <div role="alert" className="mb-5 p-4 rounded-card bg-amber/10 border border-amber/30 text-text flex items-center justify-between gap-3 text-sm">
+        <div role="alert" className="mb-6 p-4 rounded-card bg-amber/10 border border-amber/30 text-text flex items-center justify-between gap-3 text-sm">
           <div className="flex items-center gap-2">
-            <span aria-hidden="true" className="text-base text-amber">⚠️</span>
+            <AlertCircleIcon className="w-5 h-5 text-amber flex-shrink-0" />
             <span className="text-sub font-medium">{error}</span>
           </div>
           <button
             type="button"
             onClick={() => { setLoading(true); void Promise.all([loadSettings(), loadAccounts()]); }}
-            className="text-xs bg-accent text-white font-medium px-3 py-1.5 rounded-btn hover:bg-accent/90 transition-colors flex-shrink-0"
+            className="text-xs bg-accent text-white font-medium px-3 py-1.5 rounded-btn hover:bg-accent/90 transition-colors flex-shrink-0 flex items-center gap-1.5"
           >
-            Retry Connection
+            <RefreshIcon className="w-3.5 h-3.5" />
+            <span>Retry Connection</span>
           </button>
         </div>
       )}
 
       <div className="flex flex-col gap-6">
         {/* 1. AI Provider */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="ai-provider-heading">
-          <h2 id="ai-provider-heading" className="text-sm font-semibold mb-3">AI Provider</h2>
+        <section className="bg-card rounded-card border border-border shadow-card p-6" aria-labelledby="ai-provider-heading">
+          <div className="flex items-center gap-2 mb-2">
+            <SparklesIcon className="w-5 h-5 text-accent flex-shrink-0" />
+            <h2 id="ai-provider-heading" className="text-base font-semibold text-text">AI Provider</h2>
+          </div>
+          <p className="text-xs text-sub mb-4">
+            Select which AI provider is used to extract tasks and understand your incoming emails.
+          </p>
           <Segmented<"auto" | "local" | "gemini">
             label="AI provider"
             value={settings?.ai_provider_pref ?? "auto"}
@@ -253,63 +333,201 @@ export function Settings() {
             onChange={(val) => void handleAiProvider(val)}
           />
           {settings?.ai_provider_pref === "local" && (
-            <p className="text-xs text-muted mt-2">
+            <p className="text-xs text-muted mt-3">
               Using local Ollama model. Make sure Ollama is running at{" "}
-              <code className="bg-bg px-1 rounded">{settings.ollama_url}</code>.
+              <code className="bg-bg px-1.5 py-0.5 rounded border border-border text-sub">{settings.ollama_url}</code>.
             </p>
           )}
         </section>
 
         {/* 2. Gemini API key */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="gemini-key-heading">
-          <h2 id="gemini-key-heading" className="text-sm font-semibold mb-3">Gemini API Key</h2>
-          <form onSubmit={(e) => void handleSaveGemini(e)} className="flex gap-2">
-            <label htmlFor="gemini-key-input" className="sr-only">Gemini API key</label>
-            <input
-              id="gemini-key-input"
-              type="password"
-              className="text-sm border border-border rounded-btn px-3 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-accent/30"
-              placeholder={settings?.gemini_key_masked ? `${settings.gemini_key_masked}` : "Enter API key"}
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-            />
-            <button
-              type="submit"
-              disabled={savingGemini || !geminiKey.trim()}
-              className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
-            >
-              {savingGemini ? "Saving…" : "Save"}
-            </button>
+        <section className="bg-card rounded-card border border-border shadow-card p-6" aria-labelledby="gemini-key-heading">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <KeyIcon className="w-5 h-5 text-accent flex-shrink-0" />
+                <h2 id="gemini-key-heading" className="text-base font-semibold text-text">Gemini API Key</h2>
+              </div>
+              <p className="text-xs text-sub mt-1">
+                Configure your Google Gemini API key to enable cloud AI task extraction and intelligent suggestions.
+              </p>
+            </div>
+            {isKeyConfigured ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex-shrink-0">
+                <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-600" />
+                Configured & Active
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20 flex-shrink-0">
+                Not Configured
+              </span>
+            )}
+          </div>
+
+          <form onSubmit={(e) => void handleSaveGemini(e)} className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <label htmlFor="gemini-key-input" className="sr-only">Gemini API key</label>
+                <input
+                  id="gemini-key-input"
+                  type={showGeminiKey ? "text" : "password"}
+                  className="text-sm border border-border rounded-btn pl-3 pr-10 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
+                  placeholder={
+                    settings?.gemini_key_masked
+                      ? `${settings.gemini_key_masked}`
+                      : localKey
+                      ? "Stored in browser storage"
+                      : "Enter API key"
+                  }
+                  value={geminiKey}
+                  onChange={(e) => {
+                    setGeminiKey(e.target.value);
+                    if (testResult) setTestResult(null);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowGeminiKey((prev) => !prev)}
+                  aria-label={showGeminiKey ? "Hide API key" : "Show API key"}
+                  title={showGeminiKey ? "Hide API key" : "Show API key"}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted hover:text-text transition-colors"
+                >
+                  {showGeminiKey ? (
+                    <EyeOffIcon className="w-4 h-4" />
+                  ) : (
+                    <EyeIcon className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => void handleTestGemini()}
+                  disabled={testingKey || (!geminiKey.trim() && !isKeyConfigured)}
+                  className="text-sm bg-accent-tint text-accent rounded-btn px-3.5 py-2 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  {testingKey ? (
+                    <>
+                      <SpinnerIcon className="w-4 h-4 text-accent" />
+                      <span>Testing…</span>
+                    </>
+                  ) : (
+                    <>
+                      <SparklesIcon className="w-4 h-4" />
+                      <span>Test Connection</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingGemini || !geminiKey.trim()}
+                  className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  {savingGemini ? (
+                    <>
+                      <SpinnerIcon className="w-4 h-4 text-white" />
+                      <span>Saving…</span>
+                    </>
+                  ) : (
+                    <span>Save Key</span>
+                  )}
+                </button>
+
+                {isKeyConfigured && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveGemini()}
+                    disabled={clearingKey}
+                    className="text-sm text-danger hover:bg-danger/10 border border-transparent hover:border-danger/20 rounded-btn px-3 py-2 font-medium transition-colors flex items-center gap-1.5"
+                    aria-label="Remove saved Gemini key"
+                  >
+                    {clearingKey ? (
+                      <>
+                        <SpinnerIcon className="w-4 h-4 text-danger" />
+                        <span>Removing…</span>
+                      </>
+                    ) : (
+                      <>
+                        <TrashIcon className="w-4 h-4 text-danger" />
+                        <span>Remove Key</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {testResult && (
+              <div
+                role="alert"
+                className={`p-3 rounded-btn border text-xs flex items-center gap-2 transition-all ${
+                  testResult.ok
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700"
+                    : "bg-danger/10 border-danger/30 text-danger"
+                }`}
+              >
+                {testResult.ok ? (
+                  <CheckCircleIcon className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+                ) : (
+                  <AlertCircleIcon className="w-4 h-4 flex-shrink-0 text-danger" />
+                )}
+                <span className="font-medium">{testResult.message}</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-1.5 text-xs text-muted pt-1">
+              <ShieldIcon className="w-3.5 h-3.5 flex-shrink-0 text-sub" />
+              <span>
+                Need a key?{" "}
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:underline inline-flex items-center gap-1 font-medium"
+                >
+                  Get a free Gemini API key from Google AI Studio
+                  <ExternalLinkIcon className="w-3 h-3" />
+                </a>
+              </span>
+            </div>
           </form>
         </section>
 
         {/* 3. Scan frequency */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="scan-freq-heading">
-          <h2 id="scan-freq-heading" className="text-sm font-semibold mb-3">Scan Frequency</h2>
-          <form onSubmit={(e) => void handleSavePoll(e)} className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
+        <section className="bg-card rounded-card border border-border shadow-card p-6" aria-labelledby="scan-freq-heading">
+          <div className="flex items-center gap-2 mb-2">
+            <RefreshIcon className="w-5 h-5 text-accent flex-shrink-0" />
+            <h2 id="scan-freq-heading" className="text-base font-semibold text-text">Scan Frequency</h2>
+          </div>
+          <p className="text-xs text-sub mb-4">
+            Configure how frequently InboxTasks checks your mailboxes and sends lead-time reminders.
+          </p>
+          <form onSubmit={(e) => void handleSavePoll(e)} className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="poll-interval" className="text-xs font-medium text-sub mb-1 block">
+                <label htmlFor="poll-interval" className="text-xs font-medium text-sub mb-1.5 block">
                   Poll every (minutes)
                 </label>
                 <input
                   id="poll-interval"
                   type="number"
                   min="1"
-                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
                   value={pollMin}
                   onChange={(e) => setPollMin(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="reminder-lead" className="text-xs font-medium text-sub mb-1 block">
+                <label htmlFor="reminder-lead" className="text-xs font-medium text-sub mb-1.5 block">
                   Reminder lead (minutes)
                 </label>
                 <input
                   id="reminder-lead"
                   type="number"
                   min="0"
-                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
                   value={reminderMin}
                   onChange={(e) => setReminderMin(e.target.value)}
                 />
@@ -319,21 +537,34 @@ export function Settings() {
               <button
                 type="submit"
                 disabled={savingPoll}
-                className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
+                className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
               >
-                {savingPoll ? "Saving…" : "Save"}
+                {savingPoll ? (
+                  <>
+                    <SpinnerIcon className="w-4 h-4 text-white" />
+                    <span>Saving…</span>
+                  </>
+                ) : (
+                  <span>Save</span>
+                )}
               </button>
             </div>
           </form>
         </section>
 
         {/* 4. Calendar */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="calendar-heading">
-          <h2 id="calendar-heading" className="text-sm font-semibold mb-3">Calendar</h2>
+        <section className="bg-card rounded-card border border-border shadow-card p-6" aria-labelledby="calendar-heading">
+          <div className="flex items-center gap-2 mb-2">
+            <GoogleIcon className="w-5 h-5 flex-shrink-0" />
+            <h2 id="calendar-heading" className="text-base font-semibold text-text">Calendar</h2>
+          </div>
+          <p className="text-xs text-sub mb-4">
+            Synchronize tasks and deadlines with Google Calendar.
+          </p>
           {settings?.calendar_connected ? (
             <div className="flex items-center gap-3">
               <span className="text-sm text-green font-medium flex items-center gap-1.5">
-                <span aria-hidden="true" className="w-2 h-2 rounded-full bg-green" />
+                <CheckCircleIcon className="w-4 h-4 text-green" />
                 Connected
               </span>
               <button
@@ -341,9 +572,19 @@ export function Settings() {
                 onClick={() => void handleCalendarSync()}
                 disabled={syncing}
                 aria-label={syncing ? "Syncing calendar…" : "Sync Google Calendar now"}
-                className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
+                className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors flex items-center gap-1.5"
               >
-                {syncing ? "Syncing…" : "Sync now"}
+                {syncing ? (
+                  <>
+                    <SpinnerIcon className="w-3.5 h-3.5 text-accent" />
+                    <span>Syncing…</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshIcon className="w-3.5 h-3.5" />
+                    <span>Sync now</span>
+                  </>
+                )}
               </button>
             </div>
           ) : (
@@ -351,19 +592,20 @@ export function Settings() {
               type="button"
               onClick={() => void handleCalendarConnect()}
               aria-label="Connect Google Calendar"
-              className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 transition-colors"
+              className="text-sm bg-accent-tint text-accent rounded-btn px-4 py-2 font-medium hover:bg-accent/20 transition-colors inline-flex items-center gap-2"
             >
-              Connect Google Calendar
+              <GoogleIcon className="w-4 h-4" />
+              <span>Connect Google Calendar</span>
             </button>
           )}
         </section>
 
         {/* 5. Notifications */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="notifications-heading">
-          <div className="flex items-center justify-between">
+        <section className="bg-card rounded-card border border-border shadow-card p-6" aria-labelledby="notifications-heading">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 id="notifications-heading" className="text-sm font-semibold">Push Notifications</h2>
-              <p id="notifications-desc" className="text-xs text-muted mt-0.5">
+              <h2 id="notifications-heading" className="text-base font-semibold text-text">Push Notifications</h2>
+              <p id="notifications-desc" className="text-xs text-sub mt-0.5">
                 Get notified about upcoming tasks.
               </p>
             </div>
@@ -375,7 +617,7 @@ export function Settings() {
               aria-describedby="notifications-desc"
               onClick={() => void handlePushToggle()}
               disabled={togglingPush}
-              className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
+              className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 flex-shrink-0 ${
                 settings?.push_enabled ? "bg-accent" : "bg-border"
               }`}
             >
@@ -390,9 +632,12 @@ export function Settings() {
         </section>
 
         {/* 6. Email accounts */}
-        <section className="bg-card rounded-card border border-border p-5 shadow-card" aria-labelledby="accounts-heading">
+        <section className="bg-card rounded-card border border-border shadow-card p-6" aria-labelledby="accounts-heading">
           <div className="flex items-center justify-between mb-3">
-            <h2 id="accounts-heading" className="text-sm font-semibold">Email Accounts</h2>
+            <div className="flex items-center gap-2">
+              <GmailIcon className="w-5 h-5 flex-shrink-0" />
+              <h2 id="accounts-heading" className="text-base font-semibold text-text">Email Accounts</h2>
+            </div>
             <button
               type="button"
               onClick={() => setAddingAccount((v) => !v)}
@@ -403,33 +648,40 @@ export function Settings() {
               {addingAccount ? "Cancel" : "+ Add inbox"}
             </button>
           </div>
+          <p className="text-xs text-sub mb-4">
+            Connect IMAP mailboxes so InboxTasks can scan incoming messages and suggest action items.
+          </p>
 
           {/* Account list */}
           {accounts.length === 0 && !addingAccount && (
-            <p className="text-sm text-muted">No accounts connected.</p>
+            <p className="text-sm text-muted py-1">No accounts connected.</p>
           )}
           <div className="flex flex-col gap-2 mb-3" role="list" aria-label="Connected email accounts">
             {accounts.map((acct) => (
               <div
                 key={acct.id}
                 role="listitem"
-                className="flex items-center justify-between border border-border rounded-btn px-3 py-2"
+                className="flex items-center justify-between border border-border rounded-btn px-3 py-2 bg-bg/50"
               >
-                <div>
-                  <p className="text-sm font-medium text-text">{acct.email_address}</p>
-                  <p className="text-xs text-muted">
-                    {acct.last_synced_at
-                      ? `Last synced ${fmtDate(acct.last_synced_at)}`
-                      : "Never synced"}
-                  </p>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <GmailIcon className="w-4 h-4 flex-shrink-0 text-sub" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-text truncate">{acct.email_address}</p>
+                    <p className="text-xs text-muted">
+                      {acct.last_synced_at
+                        ? `Last synced ${fmtDate(acct.last_synced_at)}`
+                        : "Never synced"}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => void handleDeleteAccount(acct.id)}
                   aria-label={`Remove account ${acct.email_address}`}
-                  className="text-xs text-danger hover:text-danger/80"
+                  className="text-xs text-danger hover:text-danger/80 inline-flex items-center gap-1 p-1 hover:bg-danger/10 rounded transition-colors"
                 >
-                  Remove
+                  <TrashIcon className="w-3.5 h-3.5" />
+                  <span>Remove</span>
                 </button>
               </div>
             ))}
@@ -440,7 +692,7 @@ export function Settings() {
             <form
               id="add-account-form"
               onSubmit={(e) => void handleAddAccount(e)}
-              className="flex flex-col gap-2 border-t border-border pt-3"
+              className="flex flex-col gap-3 border-t border-border pt-4 mt-2"
               aria-label="Add email account"
             >
               <div>
@@ -450,7 +702,7 @@ export function Settings() {
                   type="email"
                   required
                   placeholder="Email address"
-                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
                   value={acctEmail}
                   onChange={(e) => setAcctEmail(e.target.value)}
                 />
@@ -460,7 +712,7 @@ export function Settings() {
                   <label htmlFor="acct-host" className="sr-only">IMAP host</label>
                   <input
                     id="acct-host"
-                    className="w-full text-sm border border-border rounded-btn px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    className="w-full text-sm border border-border rounded-btn px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
                     placeholder="IMAP host"
                     value={acctHost}
                     onChange={(e) => setAcctHost(e.target.value)}
@@ -471,7 +723,7 @@ export function Settings() {
                   <input
                     id="acct-port"
                     type="number"
-                    className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
                     placeholder="Port"
                     value={acctPort}
                     onChange={(e) => setAcctPort(e.target.value)}
@@ -485,7 +737,7 @@ export function Settings() {
                   type="password"
                   required
                   placeholder="App password"
-                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30 bg-bg transition-colors"
                   value={acctPassword}
                   onChange={(e) => setAcctPassword(e.target.value)}
                 />
@@ -493,13 +745,22 @@ export function Settings() {
               <p className="text-xs text-muted">
                 Use a Gmail app password, not your main password.
               </p>
-              <button
-                type="submit"
-                disabled={savingAcct}
-                className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
-              >
-                {savingAcct ? "Adding…" : "Add account"}
-              </button>
+              <div>
+                <button
+                  type="submit"
+                  disabled={savingAcct}
+                  className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  {savingAcct ? (
+                    <>
+                      <SpinnerIcon className="w-4 h-4 text-white" />
+                      <span>Adding…</span>
+                    </>
+                  ) : (
+                    <span>Add account</span>
+                  )}
+                </button>
+              </div>
             </form>
           )}
         </section>

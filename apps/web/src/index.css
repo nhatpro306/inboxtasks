@@ -17,6 +17,83 @@ body { @apply bg-bg text-text font-sans antialiased; margin: 0; }
   outline: none;
 }
 
+/* ── Glassmorphic utilities ────────────────────────────────────────────── */
+.glass-header {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Custom Sleek Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #D1D5DB transparent;
+}
+
+/* ── Subtle Modal & Dropdown Keyframe Animations ───────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out forwards;
+}
+
+.animate-modal-pop {
+  animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-dropdown {
+  animation: dropdownSlide 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* ── Reduced motion (WCAG 2.3.3) ───────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,
