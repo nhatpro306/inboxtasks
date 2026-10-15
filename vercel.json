@@ -4,7 +4,7 @@
   "outputDirectory": "apps/web/dist",
   "framework": null,
   "functions": { "api/*.ts": { "maxDuration": 60 } },
-  "crons": [{ "path": "/api/cron", "schedule": "0 * * * *" }],
+  "crons": [{ "path": "/api/cron", "schedule": "0 0 * * *" }],
   "rewrites": [
     { "source": "/api/cron", "destination": "/api/cron" },
     { "source": "/api/(.*)", "destination": "/api/index" },
