@@ -2,8 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api, Task } from "../lib/api.js";
 import { TaskCard } from "../components/TaskCard.js";
+import { TaskCardSkeleton } from "../components/Skeleton.js";
 import { Toast } from "../components/Toast.js";
 import { isOverdue, isToday } from "../lib/format.js";
+import { useAppEventListener, appEvents } from "../lib/events.js";
 
 interface EditTaskModalProps {
   task: Task;
@@ -191,6 +193,8 @@ export function Today() {
     }
   }, []);
 
+  useAppEventListener("tasks:changed", loadTasks);
+
   useEffect(() => {
     void loadTasks();
   }, [loadTasks, taskRefresh]);
@@ -201,6 +205,7 @@ export function Today() {
       const updated = await api.patchTask(task.id, { status: newStatus });
       setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
       setToast(newStatus === "done" ? "Task marked done." : "Task marked active.");
+      appEvents.emit("tasks:changed");
     } catch {
       setToast("Failed to update task.");
     }
@@ -209,11 +214,13 @@ export function Today() {
   function handleTaskUpdated(updated: Task) {
     setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     setToast("Task updated.");
+    appEvents.emit("tasks:changed");
   }
 
   function handleTaskDeleted(id: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     setToast("Task deleted.");
+    appEvents.emit("tasks:changed");
   }
 
   const overdue = tasks.filter((t) => t.status !== "done" && isOverdue(t.due_date));
@@ -229,11 +236,7 @@ export function Today() {
   const done = tasks.filter((t) => t.status === "done");
 
   if (loading) {
-    return (
-      <div role="status" aria-live="polite" className="flex items-center justify-center py-20 text-sub text-sm">
-        Loading…
-      </div>
-    );
+    return <TaskCardSkeleton count={3} />;
   }
 
   if (error) {

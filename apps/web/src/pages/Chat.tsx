@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.js";
 import type { ChatMessage, ProposedAction } from "../lib/api.js";
+import { appEvents } from "../lib/events.js";
 
 function actionSummary(action: ProposedAction): string {
   switch (action.type) {
@@ -102,6 +103,7 @@ export function Chat() {
       };
       setMessages((prev) => [...prev, confirmMsg]);
       setPendingAction(null);
+      appEvents.emit("tasks:changed");
     } catch {
       const errMsg: ChatMessage = {
         role: "assistant",

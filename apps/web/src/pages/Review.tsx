@@ -1,17 +1,20 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api, Suggestion } from "../lib/api.js";
 import { SuggestionCard } from "../components/SuggestionCard.js";
-import { Toast } from "../components/Toast.js";
+import { SuggestionCardSkeleton } from "../components/Skeleton.js";
+import { Toast, useToast } from "../components/Toast.js";
+import { appEvents, useAppEventListener } from "../lib/events.js";
 
 export function Review() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [batchProcessing, setBatchProcessing] = useState(false);
+  const dismissedMapRef = useRef<Map<string, Suggestion>>(new Map());
+  const { toast, toastAction, showToast, clearToast } = useToast();
 
   const loadSuggestions = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const data = await api.suggestions();
@@ -23,6 +26,8 @@ export function Review() {
     }
   }, []);
 
+  useAppEventListener("suggestions:changed", loadSuggestions);
+
   useEffect(() => {
     void loadSuggestions();
   }, [loadSuggestions]);
@@ -31,19 +36,84 @@ export function Review() {
     try {
       await api.acceptTask(id);
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
-      setToast("Task accepted.");
+      showToast("Task accepted.");
+      appEvents.emit("tasks:changed");
+      appEvents.emit("suggestions:changed");
     } catch {
-      setToast("Failed to accept task.");
+      showToast("Failed to accept task.");
     }
   }
 
   async function handleDismiss(id: string) {
+    const item = suggestions.find((s) => s.id === id);
+    if (item) {
+      dismissedMapRef.current.set(id, item);
+    }
     try {
       await api.dismissTask(id);
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
-      setToast("Suggestion dismissed.");
+      appEvents.emit("suggestions:changed");
+      showToast("Suggestion dismissed.", {
+        label: "Undo",
+        onClick: async () => {
+          await api.patchTask(id, { status: "suggested" });
+          await loadSuggestions();
+          appEvents.emit("suggestions:changed");
+        },
+      });
     } catch {
-      setToast("Failed to dismiss suggestion.");
+      showToast("Failed to dismiss suggestion.");
+    }
+  }
+
+  async function handleAcceptAll() {
+    if (suggestions.length === 0 || batchProcessing) return;
+    setBatchProcessing(true);
+    try {
+      const results = await Promise.allSettled(
+        suggestions.map((s) => api.acceptTask(s.id))
+      );
+      const acceptedCount = results.filter((r) => r.status === "fulfilled").length;
+      showToast(`Accepted ${acceptedCount} suggestion${acceptedCount === 1 ? "" : "s"}.`);
+      appEvents.emit("tasks:changed");
+      appEvents.emit("suggestions:changed");
+      await loadSuggestions();
+    } catch {
+      showToast("Failed to accept suggestions.");
+    } finally {
+      setBatchProcessing(false);
+    }
+  }
+
+  async function handleDismissAll() {
+    if (suggestions.length === 0 || batchProcessing) return;
+    setBatchProcessing(true);
+    const toDismiss = [...suggestions];
+    for (const s of toDismiss) {
+      dismissedMapRef.current.set(s.id, s);
+    }
+    try {
+      const results = await Promise.allSettled(
+        toDismiss.map((s) => api.dismissTask(s.id))
+      );
+      const dismissedCount = results.filter((r) => r.status === "fulfilled").length;
+      showToast(`Dismissed ${dismissedCount} suggestion${dismissedCount === 1 ? "" : "s"}.`, {
+        label: "Undo",
+        onClick: async () => {
+          await Promise.allSettled(
+            toDismiss.map((s) => api.patchTask(s.id, { status: "suggested" }))
+          );
+          await loadSuggestions();
+          appEvents.emit("suggestions:changed");
+        },
+      });
+      appEvents.emit("tasks:changed");
+      appEvents.emit("suggestions:changed");
+      await loadSuggestions();
+    } catch {
+      showToast("Failed to dismiss suggestions.");
+    } finally {
+      setBatchProcessing(false);
     }
   }
 
@@ -52,9 +122,11 @@ export function Review() {
       await api.patchTask(id, patch);
       await api.acceptTask(id);
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
-      setToast("Task edited and accepted.");
+      showToast("Task edited and accepted.");
+      appEvents.emit("tasks:changed");
+      appEvents.emit("suggestions:changed");
     } catch {
-      setToast("Failed to save changes.");
+      showToast("Failed to save changes.");
     }
   }
 
@@ -62,11 +134,12 @@ export function Review() {
     setScanning(true);
     try {
       await api.scanNow();
-      setToast("Scan started — checking your inbox.");
+      showToast("Scan started — checking your inbox.");
       setLoading(true);
       await loadSuggestions();
+      appEvents.emit("suggestions:changed");
     } catch {
-      setToast("Scan failed. Please try again.");
+      showToast("Scan failed. Please try again.");
     } finally {
       setScanning(false);
     }
@@ -76,27 +149,52 @@ export function Review() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold">Review Suggestions</h1>
-        <button
-          type="button"
-          onClick={() => void handleScanNow()}
-          disabled={scanning}
-          aria-label={scanning ? "Scanning inbox…" : "Scan inbox now"}
-          className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
-        >
-          {scanning ? "Scanning…" : "Scan now"}
-        </button>
+        <div className="flex items-center gap-2">
+          {suggestions.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleAcceptAll()}
+                disabled={scanning || batchProcessing}
+                aria-label="Accept all suggestions"
+                className="text-sm bg-accent text-white rounded-btn px-3 py-1.5 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
+              >
+                {batchProcessing ? "Processing…" : "Accept All"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDismissAll()}
+                disabled={scanning || batchProcessing}
+                aria-label="Dismiss all suggestions"
+                className="text-sm border border-border text-sub rounded-btn px-3 py-1.5 font-medium hover:bg-bg disabled:opacity-50 transition-colors"
+              >
+                Dismiss All
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleScanNow()}
+            disabled={scanning || batchProcessing}
+            aria-label={scanning ? "Scanning inbox…" : "Scan inbox now"}
+            className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
+          >
+            {scanning ? "Scanning…" : "Scan now"}
+          </button>
+        </div>
       </div>
 
       {loading ? (
-        <div role="status" aria-live="polite" className="text-sub text-sm py-10 text-center">
-          Loading…
-        </div>
+        <SuggestionCardSkeleton count={2} />
       ) : error ? (
         <div role="alert" className="flex flex-col items-center justify-center py-20 text-center gap-3">
           <p className="text-danger text-sm font-medium">{error}</p>
           <button
             type="button"
-            onClick={() => void loadSuggestions()}
+            onClick={() => {
+              setLoading(true);
+              void loadSuggestions();
+            }}
             className="text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors"
           >
             Retry
@@ -122,7 +220,7 @@ export function Review() {
         </div>
       )}
 
-      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
+      {toast && <Toast message={toast} onDismiss={clearToast} action={toastAction} />}
     </div>
   );
 }

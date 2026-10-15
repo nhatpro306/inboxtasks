@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { api } from "../lib/api.js";
+import { useAppEventListener } from "../lib/events.js";
 import { Toast } from "./Toast.js";
 
 function TodayIcon() {
@@ -172,10 +173,11 @@ const navLinks = [
 export function AppShell() {
   const [suggestionCount, setSuggestionCount] = useState(0);
   const [scanning, setScanning] = useState(false);
-  const [showNewTask, setShowNewTask] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [taskRefresh, setTaskRefresh] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -215,7 +217,7 @@ export function AppShell() {
     }
   }
 
-  const fetchSuggestionCount = useCallback(async () => {
+  const loadSuggestionsCount = useCallback(async () => {
     try {
       const data = await api.suggestions();
       const count = Array.isArray(data)
@@ -230,8 +232,45 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    void fetchSuggestionCount();
-  }, [fetchSuggestionCount]);
+    void loadSuggestionsCount();
+  }, [loadSuggestionsCount]);
+
+  useAppEventListener("suggestions:changed", loadSuggestionsCount);
+
+  // Global keyboard shortcuts:
+  // - Ignore if target is INPUT, TEXTAREA, or SELECT (or contentEditable)
+  // - Pressing 'n' or 'c': open setShowCreateModal(true)
+  // - Pressing '/': prevent default, focus the desktop search input
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const tagName = target.tagName;
+      if (
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      if (e.key === "n" || e.key === "c") {
+        e.preventDefault();
+        setShowCreateModal(true);
+      } else if (e.key === "/") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   async function handleScanNow() {
     setScanning(true);
@@ -242,7 +281,7 @@ export function AppShell() {
         await api.scanNow();
       }
       showToast("Scan started — checking your inbox.");
-      await fetchSuggestionCount();
+      await loadSuggestionsCount();
       navigate("/review");
     } catch {
       showToast("Scan failed. Please try again.");
@@ -270,7 +309,7 @@ export function AppShell() {
           <button
             type="button"
             aria-label="Create new task"
-            onClick={() => setShowNewTask(true)}
+            onClick={() => setShowCreateModal(true)}
             className="w-full bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors flex items-center justify-center gap-1.5"
           >
             <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -334,6 +373,7 @@ export function AppShell() {
                 </svg>
               </span>
               <input
+                ref={searchInputRef}
                 id="global-search"
                 type="search"
                 value={searchQuery}
@@ -454,9 +494,9 @@ export function AppShell() {
       </div>
 
       {/* New task modal */}
-      {showNewTask && (
+      {showCreateModal && (
         <CreateTaskModal
-          onClose={() => setShowNewTask(false)}
+          onClose={() => setShowCreateModal(false)}
           onCreated={() => setTaskRefresh((n) => n + 1)}
         />
       )}

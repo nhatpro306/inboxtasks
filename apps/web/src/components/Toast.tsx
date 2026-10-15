@@ -1,10 +1,16 @@
-import { useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
-interface ToastProps {
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+export interface ToastProps {
   message: string;
   onDismiss: () => void;
   /** Duration in ms before auto-dismissal (default: 4000) */
   duration?: number;
+  action?: ToastAction;
 }
 
 /**
@@ -12,7 +18,7 @@ interface ToastProps {
  * Renders a fixed banner in the top-right corner.
  * Auto-dismisses after `duration` ms.
  */
-export function Toast({ message, onDismiss, duration = 4000 }: ToastProps) {
+export function Toast({ message, onDismiss, duration = 4000, action }: ToastProps) {
   useEffect(() => {
     const id = setTimeout(onDismiss, duration);
     return () => clearTimeout(id);
@@ -23,28 +29,65 @@ export function Toast({ message, onDismiss, duration = 4000 }: ToastProps) {
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      className="fixed top-4 right-4 z-50 bg-text text-white text-sm px-4 py-2.5 rounded-btn shadow-card max-w-xs"
+      className="fixed top-4 right-4 z-50 flex items-center bg-text text-white text-sm px-4 py-2.5 rounded-btn shadow-card max-w-xs"
     >
-      {message}
+      <span>{message}</span>
+      {action && (
+        <button
+          type="button"
+          onClick={() => {
+            action.onClick();
+            onDismiss();
+          }}
+          className="ml-3 font-semibold text-accent-tint hover:underline focus:outline-none"
+        >
+          {action.label}
+        </button>
+      )}
     </div>
   );
 }
 
 /**
  * Hook to manage toast state.
- * Returns [toastMsg, showToast] — render <Toast> when toastMsg is non-null.
+ * Returns { toast, toastAction, showToast, clearToast } — render <Toast> when toast is non-null.
  */
-import { useState, useCallback } from "react";
-
 export function useToast(defaultDuration = 4000) {
   const [toast, setToast] = useState<string | null>(null);
+  const [toastAction, setToastAction] = useState<ToastAction | undefined>(undefined);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearToast = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setToast(null);
+    setToastAction(undefined);
+  }, []);
+
   const showToast = useCallback(
-    (msg: string) => {
+    (msg: string, action?: ToastAction) => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
       setToast(msg);
-      setTimeout(() => setToast(null), defaultDuration);
+      setToastAction(action);
+      timerRef.current = setTimeout(() => {
+        setToast(null);
+        setToastAction(undefined);
+      }, defaultDuration);
     },
     [defaultDuration],
   );
-  const clearToast = useCallback(() => setToast(null), []);
-  return { toast, showToast, clearToast };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  return { toast, toastAction, showToast, clearToast };
 }
