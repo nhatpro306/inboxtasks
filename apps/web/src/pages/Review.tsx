@@ -4,6 +4,13 @@ import { SuggestionCard } from "../components/SuggestionCard.js";
 import { SuggestionCardSkeleton } from "../components/Skeleton.js";
 import { Toast, useToast } from "../components/Toast.js";
 import { appEvents, useAppEventListener } from "../lib/events.js";
+import {
+  SparklesIcon,
+  CheckIcon,
+  TrashIcon,
+  RefreshIcon,
+  SpinnerIcon,
+} from "../components/Icons.js";
 
 export function Review() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -157,18 +164,20 @@ export function Review() {
                 onClick={() => void handleAcceptAll()}
                 disabled={scanning || batchProcessing}
                 aria-label="Accept all suggestions"
-                className="text-sm bg-accent text-white rounded-btn px-3 py-1.5 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm bg-accent text-white rounded-btn px-3 py-1.5 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors shadow-sm"
               >
-                {batchProcessing ? "Processing…" : "Accept All"}
+                <CheckIcon className="w-4 h-4" />
+                <span>{batchProcessing ? "Processing…" : "Accept All"}</span>
               </button>
               <button
                 type="button"
                 onClick={() => void handleDismissAll()}
                 disabled={scanning || batchProcessing}
                 aria-label="Dismiss all suggestions"
-                className="text-sm border border-border text-sub rounded-btn px-3 py-1.5 font-medium hover:bg-bg disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm border border-border text-sub rounded-btn px-3 py-1.5 font-medium hover:bg-bg disabled:opacity-50 transition-colors"
               >
-                Dismiss All
+                <TrashIcon className="w-4 h-4 text-muted" />
+                <span>Dismiss All</span>
               </button>
             </>
           )}
@@ -177,9 +186,14 @@ export function Review() {
             onClick={() => void handleScanNow()}
             disabled={scanning || batchProcessing}
             aria-label={scanning ? "Scanning inbox…" : "Scan inbox now"}
-            className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
           >
-            {scanning ? "Scanning…" : "Scan now"}
+            {scanning ? (
+              <SpinnerIcon className="w-4 h-4 text-accent" />
+            ) : (
+              <RefreshIcon className="w-4 h-4 text-accent" />
+            )}
+            <span>{scanning ? "Scanning…" : "Scan now"}</span>
           </button>
         </div>
       </div>
@@ -201,10 +215,30 @@ export function Review() {
           </button>
         </div>
       ) : suggestions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div aria-hidden="true" className="text-4xl mb-3">🎉</div>
-          <p className="text-sub font-medium">No suggestions — you're all caught up.</p>
-          <p className="text-muted text-sm mt-1">Scan your inbox to find new tasks.</p>
+        <div className="bg-card rounded-card border border-border p-8 sm:p-10 shadow-card flex flex-col items-center justify-center text-center max-w-md mx-auto my-12">
+          <div
+            aria-hidden="true"
+            className="w-14 h-14 rounded-full bg-accent-tint text-accent flex items-center justify-center mb-4 shadow-sm"
+          >
+            <SparklesIcon className="w-7 h-7" />
+          </div>
+          <h2 className="text-lg font-semibold text-text">All caught up</h2>
+          <p className="text-sub font-medium mt-1">No suggestions — you're all caught up.</p>
+          <p className="text-muted text-sm mt-1 mb-6">Scan your inbox to find new tasks.</p>
+          <button
+            type="button"
+            onClick={() => void handleScanNow()}
+            disabled={scanning || batchProcessing}
+            aria-label={scanning ? "Scanning inbox…" : "Scan inbox now"}
+            className="inline-flex items-center gap-2 text-sm bg-accent text-white rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            {scanning ? (
+              <SpinnerIcon className="w-4 h-4 text-white" />
+            ) : (
+              <RefreshIcon className="w-4 h-4 text-white" />
+            )}
+            <span>{scanning ? "Scanning inbox…" : "Scan inbox"}</span>
+          </button>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

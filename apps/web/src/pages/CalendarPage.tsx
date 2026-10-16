@@ -9,6 +9,14 @@ import { fmtDay, fmtTime, hasTime } from "../lib/format.js";
 import { useAppEventListener, appEvents } from "../lib/events.js";
 import { parseSubtasks, serializeSubtasks, SubtaskItem } from "../lib/subtask.js";
 import { Toast } from "../components/Toast.js";
+import {
+  CalendarIcon,
+  RefreshIcon,
+  SpinnerIcon,
+  CloseIcon,
+  PlusIcon,
+  TrashIcon,
+} from "../components/Icons.js";
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: "#EF4444",
@@ -145,14 +153,14 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="calendar-edit-task-heading"
     >
       <div
-        className="bg-card rounded-card shadow-card border border-border w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+        className="bg-card rounded-card shadow-2xl border border-border w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -162,11 +170,9 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
             type="button"
             onClick={onClose}
             aria-label="Close edit modal"
-            className="text-muted hover:text-text p-1 transition-colors"
+            className="text-muted hover:text-text p-1 transition-colors rounded-btn"
           >
-            <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
-            </svg>
+            <CloseIcon className="w-5 h-5" />
           </button>
         </div>
 
@@ -296,7 +302,7 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
                       aria-label={`Remove subtask "${item.title}"`}
                       className="text-muted hover:text-danger p-1 rounded transition-colors text-xs font-semibold flex-shrink-0"
                     >
-                      ✕
+                      <CloseIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ))}
@@ -316,9 +322,10 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
                 type="button"
                 onClick={handleAddSubtask}
                 disabled={!newSubtaskInput.trim()}
-                className="text-xs bg-accent-tint text-accent font-medium px-3 py-1.5 rounded-btn hover:bg-accent/20 disabled:opacity-40 transition-colors"
+                className="inline-flex items-center gap-1 text-xs bg-accent-tint text-accent font-medium px-3 py-1.5 rounded-btn hover:bg-accent/20 disabled:opacity-40 transition-colors"
               >
-                + Add
+                <PlusIcon className="w-3.5 h-3.5" />
+                <span>Add</span>
               </button>
             </div>
           </div>
@@ -327,16 +334,17 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
             <button
               type="submit"
               disabled={saving || !title.trim()}
-              className="flex-1 bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
+              className="flex-1 bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors shadow-sm"
             >
               {saving ? "Saving…" : "Save"}
             </button>
             <button
               type="button"
               onClick={() => void handleDelete()}
-              className="text-sm text-danger border border-danger/20 rounded-btn px-4 py-2 hover:bg-danger/5 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 text-sm text-danger border border-danger/20 rounded-btn px-4 py-2 hover:bg-danger/5 transition-colors"
             >
-              Delete
+              <TrashIcon className="w-4 h-4 text-danger" />
+              <span>Delete</span>
             </button>
             <button
               type="button"
@@ -466,26 +474,35 @@ export function CalendarPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold">Calendar</h1>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex items-center gap-2.5">
+          <CalendarIcon className="w-5 h-5 text-accent" />
+          <h1 className="text-lg font-semibold">Calendar</h1>
+        </div>
         {calendarConnected ? (
           <button
             type="button"
             onClick={() => void handleSync()}
             disabled={syncing}
             aria-label={syncing ? "Syncing calendar…" : "Sync Google Calendar"}
-            className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 disabled:opacity-50 transition-colors shadow-sm"
           >
-            {syncing ? "Syncing…" : "Sync calendar"}
+            {syncing ? (
+              <SpinnerIcon className="w-4 h-4 text-accent" />
+            ) : (
+              <RefreshIcon className="w-4 h-4 text-accent" />
+            )}
+            <span>{syncing ? "Syncing…" : "Sync Google Calendar"}</span>
           </button>
         ) : (
           <button
             type="button"
             onClick={() => void handleConnect()}
             aria-label="Connect Google Calendar"
-            className="text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm bg-accent-tint text-accent rounded-btn px-3 py-1.5 font-medium hover:bg-accent/20 transition-colors shadow-sm"
           >
-            Connect Google Calendar
+            <RefreshIcon className="w-4 h-4 text-accent" />
+            <span>Connect Google Calendar</span>
           </button>
         )}
       </div>

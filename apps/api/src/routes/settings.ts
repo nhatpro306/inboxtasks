@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma, ensureUser, encryptSecret, decryptSecret, writeAudit } from "@inboxtasks/db";
 import { maskSecret } from "@inboxtasks/shared";
+import { getMemorySettings, updateMemorySettings } from "../lib/memoryStore.js";
 
 function maskGeminiKey(settings: {
   geminiKeyRef: string | null;
@@ -11,43 +12,51 @@ function maskGeminiKey(settings: {
     const raw = decryptSecret(settings.geminiKeyRef);
     return maskSecret(raw);
   } catch {
-    return "";
+    return maskSecret(settings.geminiKeyRef);
   }
 }
 
 async function publicSettings(userId: string) {
-  const settings = await prisma.settings.findUnique({ where: { userId } });
-  const subCount = await prisma.pushSubscription.count({ where: { userId } });
+  try {
+    const settings = await prisma.settings.findUnique({ where: { userId } });
+    const subCount = await prisma.pushSubscription.count({ where: { userId } });
+    const mem = getMemorySettings(userId);
 
-  return {
-    ai_provider_pref: settings?.aiProviderPref ?? "auto",
-    ollama_url: settings?.ollamaUrl ?? "http://localhost:11434",
-    poll_interval_minutes: settings?.pollIntervalMinutes ?? 60,
-    reminder_lead_minutes: settings?.reminderLeadMinutes ?? 60,
-    calendar_provider: settings?.calendarProvider ?? null,
-    gemini_key_masked: settings ? maskGeminiKey(settings) : "",
-    calendar_connected: !!(settings?.googleTokenRef),
-    push_enabled: subCount > 0,
-  };
+    return {
+      ai_provider_pref: settings?.aiProviderPref ?? mem.aiProviderPref,
+      ollama_url: settings?.ollamaUrl ?? mem.ollamaUrl,
+      poll_interval_minutes: settings?.pollIntervalMinutes ?? mem.pollIntervalMinutes,
+      reminder_lead_minutes: settings?.reminderLeadMinutes ?? mem.reminderLeadMinutes,
+      calendar_provider: settings?.calendarProvider ?? mem.calendarProvider,
+      gemini_key_masked: settings ? maskGeminiKey(settings) : (mem.geminiKeyRef ? maskGeminiKey(mem) : ""),
+      calendar_connected: !!(settings?.googleTokenRef ?? mem.googleTokenRef),
+      push_enabled: subCount > 0 || !!mem.pushEnabled,
+    };
+  } catch (err) {
+    console.warn("[settings] Database unavailable in publicSettings, falling back to memoryStore:", (err as Error).message);
+    const mem = getMemorySettings(userId);
+    return {
+      ai_provider_pref: mem.aiProviderPref,
+      ollama_url: mem.ollamaUrl,
+      poll_interval_minutes: mem.pollIntervalMinutes,
+      reminder_lead_minutes: mem.reminderLeadMinutes,
+      calendar_provider: mem.calendarProvider,
+      gemini_key_masked: mem.geminiKeyRef ? maskGeminiKey(mem) : "",
+      calendar_connected: !!mem.googleTokenRef,
+      push_enabled: !!mem.pushEnabled,
+    };
+  }
 }
+
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/settings", async () => {
+    let userId = "default-user";
     try {
-      const userId = await ensureUser();
-      return await publicSettings(userId);
+      userId = await ensureUser();
     } catch (err) {
-      console.warn("[settings] Database unavailable, returning fallback settings:", (err as Error).message);
-      return {
-        ai_provider_pref: "auto",
-        ollama_url: "http://localhost:11434",
-        poll_interval_minutes: 60,
-        reminder_lead_minutes: 60,
-        calendar_provider: null,
-        gemini_key_masked: "",
-        calendar_connected: false,
-        push_enabled: false,
-      };
+      console.warn("[settings] Database offline in GET /api/settings ensureUser:", (err as Error).message);
     }
+    return await publicSettings(userId);
   });
 
   app.post("/api/settings/test-gemini", async (req, reply) => {
@@ -106,21 +115,28 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       poll_interval_minutes: z.number().int().min(1).max(1440).optional(),
       reminder_lead_minutes: z.number().int().min(0).max(1440).optional(),
       gemini_key: z.string().optional(),
+      push_enabled: z.boolean().optional(),
     });
     const parsed = bodySchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "validation_failed", details: parsed.error.flatten() });
     }
 
-    let userId: string;
+    let userId = "default-user";
     try {
       userId = await ensureUser();
     } catch (err) {
       console.warn("[settings] Database offline, ensureUser failed:", (err as Error).message);
-      userId = "default-user";
     }
 
     const b = parsed.data;
+
+    const memUpdate: Record<string, unknown> = {};
+    if (b.ai_provider_pref !== undefined) memUpdate.aiProviderPref = b.ai_provider_pref;
+    if (b.ollama_url !== undefined) memUpdate.ollamaUrl = b.ollama_url;
+    if (b.poll_interval_minutes !== undefined) memUpdate.pollIntervalMinutes = b.poll_interval_minutes;
+    if (b.reminder_lead_minutes !== undefined) memUpdate.reminderLeadMinutes = b.reminder_lead_minutes;
+    if (b.push_enabled !== undefined) memUpdate.pushEnabled = b.push_enabled;
 
     const updateData: Record<string, unknown> = {};
     if (b.ai_provider_pref !== undefined) updateData.aiProviderPref = b.ai_provider_pref;
@@ -134,11 +150,22 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       const trimmedKey = b.gemini_key.trim();
       if (trimmedKey === "") {
         updateData.geminiKeyRef = null;
+        memUpdate.geminiKeyRef = null;
         isKeyCleared = true;
       } else {
-        updateData.geminiKeyRef = encryptSecret(trimmedKey);
+        try {
+          const enc = encryptSecret(trimmedKey);
+          updateData.geminiKeyRef = enc;
+          memUpdate.geminiKeyRef = enc;
+        } catch {
+          updateData.geminiKeyRef = trimmedKey;
+          memUpdate.geminiKeyRef = trimmedKey;
+        }
       }
     }
+
+    // Always update memoryStore
+    updateMemorySettings(userId, memUpdate);
 
     try {
       await prisma.settings.upsert({
@@ -153,7 +180,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         },
       });
     } catch (dbErr) {
-      console.warn("[settings] Database offline or write failed, returning in-memory fallback:", (dbErr as Error).message);
+      console.warn("[settings] Database offline or write failed, falling back to memoryStore:", (dbErr as Error).message);
     }
 
     if (geminiKeyChanged) {
@@ -166,20 +193,6 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       }).catch(() => {});
     }
 
-    try {
-      return await publicSettings(userId);
-    } catch (err) {
-      console.warn("[settings] Database offline, returning safe fallback:", (err as Error).message);
-      return {
-        ai_provider_pref: (b.ai_provider_pref as "auto" | "local" | "gemini") ?? "auto",
-        ollama_url: b.ollama_url ?? "http://localhost:11434",
-        poll_interval_minutes: b.poll_interval_minutes ?? 60,
-        reminder_lead_minutes: b.reminder_lead_minutes ?? 60,
-        calendar_provider: null,
-        gemini_key_masked: b.gemini_key !== undefined ? (b.gemini_key.trim() ? maskSecret(b.gemini_key.trim()) : "") : "",
-        calendar_connected: false,
-        push_enabled: false,
-      };
-    }
+    return await publicSettings(userId);
   });
 }

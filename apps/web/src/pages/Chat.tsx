@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.js";
 import type { ChatMessage, ProposedAction } from "../lib/api.js";
 import { appEvents } from "../lib/events.js";
+import {
+  SparklesIcon,
+  GeminiSparkleIcon,
+  CheckCircleIcon,
+  SpinnerIcon,
+  TrashIcon,
+  ArrowRightIcon,
+  BrandLogo,
+} from "../components/Icons.js";
 
 function actionSummary(action: ProposedAction): string {
   switch (action.type) {
@@ -37,9 +46,23 @@ export function Chat() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(() => {
+    return Boolean(
+      typeof localStorage !== "undefined" && localStorage.getItem("inboxtasks_gemini_key")
+    );
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputId = "chat-input";
+
+  // Check Gemini key on mount
+  useEffect(() => {
+    const key =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem("inboxtasks_gemini_key")
+        : null;
+    setHasGeminiKey(Boolean(key));
+  }, []);
 
   // Load history on mount
   useEffect(() => {
@@ -60,6 +83,16 @@ export function Chat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pendingAction]);
+
+  function handleClear() {
+    setMessages([]);
+    setPendingAction(null);
+    try {
+      localStorage.removeItem("inboxtasks_chat_v1");
+    } catch {
+      // ignore
+    }
+  }
 
   async function send() {
     const text = input.trim();
@@ -131,7 +164,33 @@ export function Chat() {
 
   return (
     <div className="flex flex-col h-full min-h-[60vh]">
-      <h1 className="text-lg font-semibold mb-4">Chat</h1>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold">Chat</h1>
+          {hasGeminiKey ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium border border-emerald-500/20 shadow-sm">
+              <GeminiSparkleIcon className="w-3.5 h-3.5" />
+              <span>Gemini 2.5 Flash Active</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-sub/10 text-sub text-xs font-medium border border-border shadow-sm">
+              <SparklesIcon className="w-3.5 h-3.5 text-muted" />
+              <span>Auto Mode</span>
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={messages.length === 0}
+          aria-label="Clear chat messages"
+          className="inline-flex items-center gap-1.5 text-xs text-sub hover:text-danger border border-border rounded-btn px-2.5 py-1.5 hover:bg-bg disabled:opacity-40 disabled:hover:text-sub transition-colors shadow-sm"
+        >
+          <TrashIcon className="w-3.5 h-3.5" />
+          <span>Clear</span>
+        </button>
+      </div>
 
       {/* Message area */}
       <div
@@ -144,21 +203,7 @@ export function Chat() {
           /* Empty state */
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 rounded-card bg-accent-tint text-accent grid place-items-center mb-3" aria-hidden="true">
-              <svg
-                aria-hidden="true"
-                focusable="false"
-                className="w-6 h-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.8}
-              >
-                <path
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <SparklesIcon className="w-6 h-6 text-accent" />
             </div>
             <p className="text-sub font-medium mb-1">Ask me anything about your tasks</p>
             <p className="text-muted text-sm mb-4">
@@ -190,8 +235,20 @@ export function Chat() {
             {messages.map((msg, i) => (
               <div
                 key={i}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex items-start gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
+                {msg.role === "assistant" && (
+                  <div
+                    aria-hidden="true"
+                    className="w-7 h-7 rounded-full bg-accent-tint flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm border border-border/40"
+                  >
+                    {hasGeminiKey ? (
+                      <GeminiSparkleIcon className="w-4 h-4" />
+                    ) : (
+                      <BrandLogo className="w-4 h-4" />
+                    )}
+                  </div>
+                )}
                 <div
                   role={msg.role === "assistant" ? "article" : undefined}
                   aria-label={msg.role === "assistant" ? "Assistant message" : "Your message"}
@@ -208,7 +265,17 @@ export function Chat() {
 
             {/* Typing indicator */}
             {loading && (
-              <div className="flex justify-start" role="status" aria-label="Assistant is typing">
+              <div className="flex items-start gap-2.5 justify-start" role="status" aria-label="Assistant is typing">
+                <div
+                  aria-hidden="true"
+                  className="w-7 h-7 rounded-full bg-accent-tint flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm border border-border/40"
+                >
+                  {hasGeminiKey ? (
+                    <GeminiSparkleIcon className="w-4 h-4" />
+                  ) : (
+                    <BrandLogo className="w-4 h-4" />
+                  )}
+                </div>
                 <div className="bg-card border border-border rounded-card px-4 py-3 flex gap-1 items-center shadow-sm">
                   <span aria-hidden="true" className="w-2 h-2 rounded-full bg-muted animate-bounce [animation-delay:-0.3s]" />
                   <span aria-hidden="true" className="w-2 h-2 rounded-full bg-muted animate-bounce [animation-delay:-0.15s]" />
@@ -219,15 +286,24 @@ export function Chat() {
 
             {/* Pending proposed action card */}
             {pendingAction && (
-              <div className="flex justify-start w-full mt-1">
+              <div className="flex items-start gap-2.5 justify-start w-full mt-1">
+                <div
+                  aria-hidden="true"
+                  className="w-7 h-7 rounded-full bg-accent-tint flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm border border-border/40"
+                >
+                  <SparklesIcon className="w-4 h-4 text-accent" />
+                </div>
                 <div
                   role="group"
                   aria-label="Proposed action"
-                  className="w-full max-w-[90%] bg-accent-tint border border-accent/30 rounded-card px-4 py-3 text-sm"
+                  className="w-full max-w-[85%] bg-accent-tint border border-accent/30 rounded-card px-4 py-3 text-sm"
                 >
-                  <p className="text-accent font-semibold mb-1 text-xs uppercase tracking-wide" aria-hidden="true">
-                    Proposed action
-                  </p>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <CheckCircleIcon className="w-3.5 h-3.5 text-accent" />
+                    <p className="text-accent font-semibold text-xs uppercase tracking-wide" aria-hidden="true">
+                      Proposed action
+                    </p>
+                  </div>
                   <p className="text-text mb-3">{actionSummary(pendingAction.action)}</p>
                   <div className="flex gap-2">
                     <button
@@ -235,7 +311,7 @@ export function Chat() {
                       onClick={() => void handleConfirm()}
                       disabled={confirmLoading}
                       aria-label="Confirm proposed action"
-                      className="bg-accent text-white text-xs font-medium rounded-btn px-4 py-1.5 hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="bg-accent text-white text-xs font-medium rounded-btn px-4 py-1.5 hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                       {confirmLoading ? "Confirming…" : "Confirm"}
                     </button>
@@ -280,9 +356,14 @@ export function Chat() {
           onClick={() => void send()}
           disabled={loading || !input.trim()}
           aria-label="Send message"
-          className="bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          className="inline-flex items-center justify-center gap-1.5 bg-accent text-white text-sm rounded-btn px-4 py-2 font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-sm"
         >
-          Send
+          {loading ? (
+            <SpinnerIcon className="w-4 h-4 text-white" />
+          ) : (
+            <ArrowRightIcon className="w-4 h-4 text-white" />
+          )}
+          <span>Send</span>
         </button>
       </div>
     </div>

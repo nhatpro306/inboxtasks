@@ -7,6 +7,13 @@ import { Toast } from "../components/Toast.js";
 import { isOverdue, isToday, hasTime } from "../lib/format.js";
 import { useAppEventListener, appEvents } from "../lib/events.js";
 import { parseSubtasks, serializeSubtasks, SubtaskItem } from "../lib/subtask.js";
+import {
+  CheckCircleIcon,
+  ClockIcon,
+  SparklesIcon,
+  AlertCircleIcon,
+  CloseIcon,
+} from "../components/Icons.js";
 
 interface EditTaskModalProps {
   task: Task;
@@ -113,6 +120,7 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
         priority,
         status,
       });
+      appEvents.emit("tasks:changed");
       onUpdated(updated);
       onClose();
     } catch {
@@ -124,6 +132,7 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
     if (!confirm("Delete this task? This cannot be undone.")) return;
     try {
       await api.deleteTask(task.id);
+      appEvents.emit("tasks:changed");
       onDeleted(task.id);
       onClose();
     } catch {
@@ -156,9 +165,7 @@ function EditTaskModal({ task, onClose, onUpdated, onDeleted }: EditTaskModalPro
             aria-label="Close edit modal"
             className="text-muted hover:text-text p-1 transition-colors"
           >
-            <svg aria-hidden="true" focusable="false" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
-            </svg>
+            <CloseIcon className="w-5 h-5" />
           </button>
         </div>
 
@@ -406,6 +413,7 @@ export function Today() {
   );
   const noDate = tasks.filter((t) => t.status !== "done" && t.due_date === null);
   const done = tasks.filter((t) => t.status === "done");
+  const remainingCount = overdue.length + today.length + upcoming.length + noDate.length;
 
   if (loading) {
     return <TaskCardSkeleton count={3} />;
@@ -428,7 +436,36 @@ export function Today() {
 
   return (
     <div>
-      <h1 className="text-lg font-semibold mb-5">Today</h1>
+      <h1 className="text-lg font-semibold mb-4">Today</h1>
+
+      {/* ─── Top Summary Stat Bar ─── */}
+      <div className="flex items-center gap-2.5 flex-wrap mb-6" aria-label="Task statistics">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border text-xs font-medium shadow-xs">
+          <ClockIcon className="w-4 h-4 text-accent" />
+          <span className="text-muted">Due Today:</span>
+          <span className="font-semibold text-text">{today.length}</span>
+        </div>
+
+        {overdue.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-danger/10 border border-danger/25 text-danger text-xs font-medium shadow-xs">
+            <AlertCircleIcon className="w-4 h-4 text-danger animate-pulse" />
+            <span>Overdue:</span>
+            <span className="font-bold">{overdue.length}</span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border text-xs font-medium shadow-xs">
+          <CheckCircleIcon className="w-4 h-4 text-green" />
+          <span className="text-muted">Completed:</span>
+          <span className="font-semibold text-text">{done.length}</span>
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border text-xs font-medium shadow-xs">
+          <SparklesIcon className="w-4 h-4 text-accent" />
+          <span className="text-muted">Remaining:</span>
+          <span className="font-semibold text-text">{remainingCount}</span>
+        </div>
+      </div>
 
       {/* ─── Overdue Section ─── */}
       <section className="mb-6" aria-label="Overdue">
@@ -453,9 +490,9 @@ export function Today() {
             ))}
           </div>
         ) : (
-          <div className="rounded-card border border-green/20 bg-green/5 p-3 flex items-center gap-3 text-xs">
-            <div className="w-5 h-5 rounded-full bg-green/15 text-green flex items-center justify-center font-bold text-xs flex-shrink-0" aria-hidden="true">
-              ✓
+          <div className="rounded-card border border-green/20 bg-green/5 p-3.5 flex items-center gap-3 text-xs">
+            <div className="w-6 h-6 rounded-full bg-green/15 text-green flex items-center justify-center font-bold text-xs flex-shrink-0" aria-hidden="true">
+              <CheckCircleIcon className="w-4 h-4 text-green" />
             </div>
             <div>
               <p className="font-medium text-green">No overdue tasks</p>
@@ -489,10 +526,7 @@ export function Today() {
         ) : (
           <div className="rounded-card border border-dashed border-accent/30 bg-accent-tint/30 p-6 flex flex-col items-center justify-center text-center">
             <div className="w-10 h-10 rounded-full bg-accent-tint text-accent flex items-center justify-center mb-2.5" aria-hidden="true">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <rect x="3" y="4" width="18" height="18" rx="3" strokeLinecap="round" />
-                <path d="M3 9h18M8 2v4M16 2v4" strokeLinecap="round" />
-              </svg>
+              <ClockIcon className="w-5 h-5 text-accent" />
             </div>
             <p className="text-sm font-semibold text-text">No tasks for today</p>
             <p className="text-xs text-muted mt-1 max-w-xs">
@@ -526,9 +560,7 @@ export function Today() {
         ) : (
           <div className="rounded-card border border-border/80 bg-card/60 p-4 flex items-center gap-3 text-xs">
             <div className="w-6 h-6 rounded-full bg-sub/10 text-sub flex items-center justify-center flex-shrink-0" aria-hidden="true">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <SparklesIcon className="w-3.5 h-3.5 text-sub" />
             </div>
             <div>
               <p className="font-medium text-text">No upcoming tasks</p>

@@ -2,6 +2,14 @@ import { useState } from "react";
 import { Suggestion } from "../lib/api.js";
 import { fmtDate } from "../lib/format.js";
 import { PriorityPill } from "./PriorityPill.js";
+import {
+  CheckIcon,
+  CloseIcon,
+  PencilIcon,
+  SparklesIcon,
+  ClockIcon,
+  GmailIcon,
+} from "./Icons.js";
 
 interface Props {
   s: Suggestion;
@@ -64,11 +72,12 @@ export function SuggestionCard({ s, onAccept, onDismiss, onEdit }: Props) {
   return (
     <article
       aria-label={`Suggestion: ${s.title}`}
-      className="bg-card rounded-card shadow-card border border-border p-4 flex flex-col gap-3"
+      className="bg-card rounded-card shadow-card border border-border p-4 flex flex-col gap-3 hover:border-accent/40 hover:shadow-card-hover transition-all duration-200"
     >
       {/* Source */}
       {s.source_email && (
-        <div className="text-xs text-sub">
+        <div className="flex items-center gap-1.5 text-xs text-sub">
+          <GmailIcon className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="font-medium text-text">{s.source_email.from}</span>
           {s.source_email.subject && (
             <span className="text-muted"> · {s.source_email.subject}</span>
@@ -81,9 +90,10 @@ export function SuggestionCard({ s, onAccept, onDismiss, onEdit }: Props) {
         <p className="text-sm font-medium text-text leading-snug">{s.title}</p>
         <span
           aria-label={`${matchPct}% match confidence`}
-          className="inline-flex items-center rounded-pill bg-accent-tint text-accent text-xs font-medium px-2 py-0.5 flex-shrink-0"
+          className="inline-flex items-center gap-1 rounded-pill bg-accent-tint text-accent text-xs font-medium px-2 py-0.5 flex-shrink-0"
         >
-          {matchPct}% match
+          <SparklesIcon className="w-3 h-3" />
+          <span>{matchPct}% match</span>
         </span>
       </div>
 
@@ -91,7 +101,10 @@ export function SuggestionCard({ s, onAccept, onDismiss, onEdit }: Props) {
       <div className="flex items-center gap-2 flex-wrap">
         <PriorityPill priority={s.priority} />
         {s.due_date && (
-          <span className="text-xs text-sub">{fmtDate(s.due_date)}</span>
+          <span className="inline-flex items-center gap-1 text-xs text-sub">
+            <ClockIcon className="w-3.5 h-3.5 text-muted" />
+            {fmtDate(s.due_date)}
+          </span>
         )}
       </div>
 
@@ -100,9 +113,7 @@ export function SuggestionCard({ s, onAccept, onDismiss, onEdit }: Props) {
         <div className="bg-bg/60 rounded-btn p-2.5 text-xs text-sub border border-border/50">
           <div className="flex items-center justify-between gap-2">
             <span className="font-medium text-text flex items-center gap-1.5">
-              <svg aria-hidden="true" focusable="false" className="w-3.5 h-3.5 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
+              <GmailIcon className="w-3.5 h-3.5 flex-shrink-0" />
               Email Context
             </span>
             <button
@@ -161,16 +172,18 @@ export function SuggestionCard({ s, onAccept, onDismiss, onEdit }: Props) {
               type="button"
               onClick={() => void handleEdit()}
               disabled={saving}
-              className="flex-1 bg-accent text-white text-sm rounded-btn px-3 py-1.5 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 bg-accent text-white text-sm rounded-btn px-3 py-1.5 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors shadow-sm"
             >
-              {saving ? "Saving…" : "Save & Accept"}
+              <CheckIcon className="w-4 h-4" />
+              <span>{saving ? "Saving…" : "Save & Accept"}</span>
             </button>
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="text-sm text-sub border border-border rounded-btn px-3 py-1.5 hover:bg-bg transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm text-sub border border-border rounded-btn px-3 py-1.5 hover:bg-bg transition-colors"
             >
-              Cancel
+              <CloseIcon className="w-3.5 h-3.5 text-muted" />
+              <span>Cancel</span>
             </button>
           </div>
         </div>
@@ -184,26 +197,29 @@ export function SuggestionCard({ s, onAccept, onDismiss, onEdit }: Props) {
             onClick={() => void handleAccept()}
             disabled={accepting}
             aria-label={`Accept suggestion: ${s.title}`}
-            className="flex-1 bg-accent text-white text-sm rounded-btn px-3 py-1.5 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-accent text-white text-sm rounded-btn px-3 py-1.5 font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors shadow-sm"
           >
-            {accepting ? "Accepting…" : "Accept"}
+            <CheckIcon className="w-4 h-4" />
+            <span>{accepting ? "Accepting…" : "Accept"}</span>
           </button>
           <button
             type="button"
             onClick={() => setEditing(true)}
             aria-label={`Edit suggestion: ${s.title}`}
-            className="text-sm text-sub border border-border rounded-btn px-3 py-1.5 hover:bg-bg transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm text-sub border border-border rounded-btn px-3 py-1.5 hover:bg-bg transition-colors"
           >
-            Edit
+            <PencilIcon className="w-3.5 h-3.5 text-muted" />
+            <span>Edit</span>
           </button>
           <button
             type="button"
             onClick={() => void handleDismiss()}
             disabled={dismissing}
             aria-label={`Dismiss suggestion: ${s.title}`}
-            className="text-sm text-sub border border-border rounded-btn px-3 py-1.5 hover:bg-bg transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm text-sub border border-border rounded-btn px-3 py-1.5 hover:bg-bg transition-colors"
           >
-            {dismissing ? "Dismissing…" : "Dismiss"}
+            <CloseIcon className="w-3.5 h-3.5 text-muted" />
+            <span>{dismissing ? "Dismissing…" : "Dismiss"}</span>
           </button>
         </div>
       )}

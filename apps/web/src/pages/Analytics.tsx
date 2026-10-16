@@ -3,73 +3,22 @@ import { api, Task } from "../lib/api.js";
 import { parseSubtasks } from "../lib/subtask.js";
 import { hasTime } from "../lib/format.js";
 import { useAppEventListener } from "../lib/events.js";
-
-function TaskTotalIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M9 12h6m-6 4h6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function TaskDoneIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function InProgressIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5 text-amber" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function SuggestedIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-4 h-4 text-amber" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <rect x="3" y="4" width="18" height="18" rx="3" strokeLinecap="round" />
-      <path d="M3 9h18M8 2v4M16 2v4" strokeLinecap="round" />
-    </svg>
-  );
-}
+import {
+  CheckCircleIcon,
+  ClockIcon,
+  SparklesIcon,
+  AnalyticsIcon,
+  CheckIcon,
+  CalendarIcon,
+  RefreshIcon,
+  SpinnerIcon,
+} from "../components/Icons.js";
 
 function UnscheduledIcon() {
   return (
     <svg aria-hidden="true" focusable="false" className="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <circle cx="12" cy="12" r="9" strokeDasharray="3 3" />
       <path d="M12 8v8M8 12h8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" className="w-4 h-4 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -192,16 +141,11 @@ export function Analytics() {
           aria-label="Refresh analytics data"
           className="self-start sm:self-auto inline-flex items-center gap-2 bg-card border border-border rounded-btn px-3.5 py-2 text-sm font-medium text-text hover:bg-bg transition-colors shadow-card disabled:opacity-50"
         >
-          <svg
-            aria-hidden="true"
-            className={`w-4 h-4 text-sub ${refreshing ? "animate-spin" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          {refreshing ? (
+            <SpinnerIcon className="w-4 h-4 text-sub" />
+          ) : (
+            <RefreshIcon className="w-4 h-4 text-sub" />
+          )}
           <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
         </button>
       </div>
@@ -244,11 +188,11 @@ export function Analytics() {
           {/* Top 4 Key Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Tasks */}
-            <div className="bg-card rounded-card border border-border shadow-card p-5 flex flex-col justify-between">
+            <div className="bg-card rounded-card border border-border shadow-card p-5 flex flex-col justify-between hover:border-accent/40 transition-colors">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-sub">Total Tasks</span>
-                <div className="w-8 h-8 rounded-btn bg-accent-tint flex items-center justify-center">
-                  <TaskTotalIcon />
+                <div className="w-9 h-9 rounded-btn bg-accent-tint text-accent flex items-center justify-center">
+                  <AnalyticsIcon className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-3">
@@ -258,11 +202,11 @@ export function Analytics() {
             </div>
 
             {/* Done Tasks */}
-            <div className="bg-card rounded-card border border-border shadow-card p-5 flex flex-col justify-between">
+            <div className="bg-card rounded-card border border-border shadow-card p-5 flex flex-col justify-between hover:border-green/40 transition-colors">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-sub">Done Tasks</span>
-                <div className="w-8 h-8 rounded-btn bg-green/10 flex items-center justify-center">
-                  <TaskDoneIcon />
+                <div className="w-9 h-9 rounded-btn bg-green/10 text-green flex items-center justify-center">
+                  <CheckCircleIcon className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-3">
@@ -274,11 +218,11 @@ export function Analytics() {
             </div>
 
             {/* In Progress */}
-            <div className="bg-card rounded-card border border-border shadow-card p-5 flex flex-col justify-between">
+            <div className="bg-card rounded-card border border-border shadow-card p-5 flex flex-col justify-between hover:border-amber/40 transition-colors">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-sub">In Progress</span>
-                <div className="w-8 h-8 rounded-btn bg-amber/10 flex items-center justify-center">
-                  <InProgressIcon />
+                <div className="w-9 h-9 rounded-btn bg-amber/10 text-amber flex items-center justify-center">
+                  <ClockIcon className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-3">
@@ -288,11 +232,11 @@ export function Analytics() {
             </div>
 
             {/* Suggested */}
-            <div className="bg-card rounded-card border border-border shadow-card p-5 flex flex-col justify-between">
+            <div className="bg-card rounded-card border border-border shadow-card p-5 flex flex-col justify-between hover:border-accent/40 transition-colors">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-sub">Suggested</span>
-                <div className="w-8 h-8 rounded-btn bg-accent-tint flex items-center justify-center">
-                  <SuggestedIcon />
+                <div className="w-9 h-9 rounded-btn bg-accent-tint text-accent flex items-center justify-center">
+                  <SparklesIcon className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-3">
@@ -552,7 +496,7 @@ export function Analytics() {
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="flex items-center gap-2 font-medium text-text">
-                      <ClockIcon />
+                      <ClockIcon className="w-4 h-4 text-accent" />
                       Specific Time
                     </span>
                     <span className="text-sub font-medium">
@@ -576,7 +520,7 @@ export function Analytics() {
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="flex items-center gap-2 font-medium text-text">
-                      <CalendarIcon />
+                      <CalendarIcon className="w-4 h-4 text-amber" />
                       Date Only
                     </span>
                     <span className="text-sub font-medium">
@@ -628,8 +572,8 @@ export function Analytics() {
             <h3 className="text-sm font-semibold text-text mb-3">Productivity Insights</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-sub">
               <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-green/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <CheckIcon />
+                <div className="w-6 h-6 rounded-full bg-green/10 text-green flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <CheckIcon className="w-3.5 h-3.5" />
                 </div>
                 <div>
                   <span className="font-medium text-text">
@@ -639,8 +583,8 @@ export function Analytics() {
                 </div>
               </div>
               <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-amber/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <ClockIcon />
+                <div className="w-6 h-6 rounded-full bg-amber/10 text-amber flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <ClockIcon className="w-3.5 h-3.5" />
                 </div>
                 <div>
                   <span className="font-medium text-text">
@@ -650,7 +594,7 @@ export function Analytics() {
                 </div>
               </div>
               <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-danger/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-danger/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <span className="w-2 h-2 rounded-full bg-danger inline-block" />
                 </div>
                 <div>
