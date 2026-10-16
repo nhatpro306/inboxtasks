@@ -31,7 +31,7 @@ export class GeminiProvider implements LLMProvider {
   readonly name = "gemini" as const;
   constructor(
     private apiKey: string,
-    private model = "gemini-2.5-flash",
+    private model = "gemini-3.8-flash",
   ) {}
 
   async isAvailable(): Promise<boolean> {
@@ -42,7 +42,7 @@ export class GeminiProvider implements LLMProvider {
     const text = await this.call({
       systemInstruction: { parts: [{ text: EXTRACTION_SYSTEM }] },
       contents: [{ role: "user", parts: [{ text: buildExtractionUser(email) }] }],
-      // NOTE: keep extraction in pure JSON mode with NO tools — responseMimeType+tools conflict in Gemini 2.5.
+      // NOTE: keep extraction in pure JSON mode with NO tools — responseMimeType+tools conflict in Gemini 3.8.
       generationConfig: { responseMimeType: "application/json", responseSchema: geminiSchema, temperature: 0 },
     });
     return parseAndValidate(text);

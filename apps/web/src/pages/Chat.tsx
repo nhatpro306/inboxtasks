@@ -171,7 +171,7 @@ export function Chat() {
           {hasGeminiKey ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium border border-emerald-500/20 shadow-sm">
               <GeminiSparkleIcon className="w-3.5 h-3.5" />
-              <span>Gemini 2.5 Flash Active</span>
+              <span>Gemini 3.8 Flash Active</span>
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-sub/10 text-sub text-xs font-medium border border-border shadow-sm">
