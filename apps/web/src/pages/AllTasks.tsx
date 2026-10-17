@@ -6,6 +6,11 @@ import { Toast } from "../components/Toast.js";
 import { useAppEventListener, appEvents } from "../lib/events.js";
 import { hasTime } from "../lib/format.js";
 import { parseSubtasks, serializeSubtasks, SubtaskItem } from "../lib/subtask.js";
+import { KanbanBoard } from "../components/KanbanBoard.js";
+import { EisenhowerView } from "../components/EisenhowerView.js";
+import { PomodoroTimer } from "../components/PomodoroTimer.js";
+import { EmailReplyModal } from "../components/EmailReplyModal.js";
+import { ListIcon, KanbanIcon, MatrixIcon } from "../components/Icons.js";
 
 const STATUS_OPTIONS = [
   { label: "All", value: "" },
@@ -369,6 +374,26 @@ export function AllTasks() {
   const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
   const [editing, setEditing] = useState<Task | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "eisenhower">(
+    () => (localStorage.getItem("inboxtasks_view_mode") as any) || "list"
+  );
+  const [focusingTask, setFocusingTask] = useState<Task | null>(null);
+  const [replyingTask, setReplyingTask] = useState<Task | null>(null);
+
+  function handleViewModeChange(val: "list" | "kanban" | "eisenhower") {
+    setViewMode(val);
+    localStorage.setItem("inboxtasks_view_mode", val);
+  }
+
+  async function handleUpdateStatus(taskId: string, newStatus: string) {
+    try {
+      const updated = await api.patchTask(taskId, { status: newStatus });
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
+      appEvents.emit("tasks:changed");
+    } catch {
+      setToast("Failed to update task status.");
+    }
+  }
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -431,7 +456,62 @@ export function AllTasks() {
 
   return (
     <div>
-      <h1 className="text-lg font-semibold mb-4">All Tasks</h1>
+      <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+        <h1 className="text-lg font-semibold">All Tasks</h1>
+
+        {/* View Switcher tab control */}
+        <div
+          role="tablist"
+          aria-label="View switcher"
+          className="inline-flex items-center bg-card border border-border rounded-lg p-1 shadow-xs gap-1"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "list"}
+            aria-label="List view"
+            onClick={() => handleViewModeChange("list")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              viewMode === "list"
+                ? "bg-accent text-white shadow-xs"
+                : "text-sub hover:text-text hover:bg-bg"
+            }`}
+          >
+            <ListIcon className="w-3.5 h-3.5" />
+            <span>List</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "kanban"}
+            aria-label="Kanban board view"
+            onClick={() => handleViewModeChange("kanban")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              viewMode === "kanban"
+                ? "bg-accent text-white shadow-xs"
+                : "text-sub hover:text-text hover:bg-bg"
+            }`}
+          >
+            <KanbanIcon className="w-3.5 h-3.5" />
+            <span>Kanban</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "eisenhower"}
+            aria-label="Eisenhower matrix view"
+            onClick={() => handleViewModeChange("eisenhower")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              viewMode === "eisenhower"
+                ? "bg-accent text-white shadow-xs"
+                : "text-sub hover:text-text hover:bg-bg"
+            }`}
+          >
+            <MatrixIcon className="w-3.5 h-3.5" />
+            <span>Eisenhower</span>
+          </button>
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="flex flex-col gap-3 mb-5">
@@ -500,6 +580,22 @@ export function AllTasks() {
             Retry
           </button>
         </div>
+      ) : viewMode === "kanban" ? (
+        <KanbanBoard
+          tasks={filtered}
+          onToggleDone={handleToggleDone}
+          onUpdateStatus={handleUpdateStatus}
+          onClickTask={(t) => setEditing(t)}
+          onStartFocus={(t) => setFocusingTask(t)}
+          onDraftReply={(t) => setReplyingTask(t)}
+        />
+      ) : viewMode === "eisenhower" ? (
+        <EisenhowerView
+          tasks={filtered}
+          onToggleDone={handleToggleDone}
+          onClickTask={(t) => setEditing(t)}
+          onStartFocus={(t) => setFocusingTask(t)}
+        />
       ) : filtered.length === 0 ? (
         <div className="text-sub text-sm py-10 text-center">No tasks found.</div>
       ) : (
@@ -510,6 +606,7 @@ export function AllTasks() {
               task={task}
               onToggleDone={handleToggleDone}
               onClick={setEditing}
+              onStartFocus={(t) => setFocusingTask(t)}
             />
           ))}
         </div>
@@ -523,6 +620,24 @@ export function AllTasks() {
           onDeleted={handleTaskDeleted}
         />
       )}
+
+      {/* Pomodoro Timer Modal */}
+      <PomodoroTimer
+        task={focusingTask}
+        isOpen={!!focusingTask}
+        onClose={() => setFocusingTask(null)}
+        onCompleteTask={async (t) => {
+          await handleToggleDone(t);
+          setFocusingTask(null);
+        }}
+      />
+
+      {/* Email Reply Modal */}
+      <EmailReplyModal
+        task={replyingTask}
+        isOpen={!!replyingTask}
+        onClose={() => setReplyingTask(null)}
+      />
 
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>

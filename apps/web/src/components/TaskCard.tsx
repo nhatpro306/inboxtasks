@@ -4,15 +4,16 @@ import { appEvents } from "../lib/events.js";
 import { fmtDate, fmtTime, hasTime, isOverdue, isToday } from "../lib/format.js";
 import { parseSubtasks, serializeSubtasks } from "../lib/subtask.js";
 import { PriorityPill } from "./PriorityPill.js";
-import { ClockIcon, CheckIcon } from "./Icons.js";
+import { ClockIcon, CheckIcon, TimerIcon } from "./Icons.js";
 
 export interface TaskCardProps {
   task: Task;
   onToggleDone: (task: Task) => void;
   onClick?: (task: Task) => void;
+  onStartFocus?: (task: Task) => void;
 }
 
-export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
+export function TaskCard({ task, onToggleDone, onClick, onStartFocus }: TaskCardProps) {
   const [showAllSubtasks, setShowAllSubtasks] = useState(false);
   const [optimisticDescription, setOptimisticDescription] = useState<string | null>(null);
 
@@ -104,7 +105,21 @@ export function TaskCard({ task, onToggleDone, onClick }: TaskCardProps) {
           >
             {task.title}
           </span>
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex items-center gap-1.5">
+            {onStartFocus && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStartFocus(task);
+                }}
+                title="Focus (Pomodoro)"
+                aria-label={`Focus (Pomodoro) on "${task.title}"`}
+                className="p-1 rounded text-sub hover:text-accent hover:bg-accent-tint/60 transition-colors focus:outline-none focus:ring-1 focus:ring-accent/40"
+              >
+                <TimerIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
             <PriorityPill priority={task.priority} />
           </div>
         </div>

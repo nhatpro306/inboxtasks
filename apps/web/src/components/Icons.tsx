@@ -838,5 +838,227 @@ export function GeminiSparkleIcon({
   );
 }
 
+/* ─── Productivity & View Icons ─── */
+
+export function KanbanIcon({
+  className = "w-5 h-5",
+  stroke = "currentColor",
+  strokeWidth = 1.8,
+  strokeLinecap = "round",
+  strokeLinejoin = "round",
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      viewBox="0 0 24 24"
+      className={className}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap={strokeLinecap}
+      strokeLinejoin={strokeLinejoin}
+      {...props}
+    >
+      <rect x="3" y="4" width="5" height="16" rx="1.5" />
+      <rect x="9.5" y="4" width="5" height="11" rx="1.5" />
+      <rect x="16" y="4" width="5" height="14" rx="1.5" />
+    </svg>
+  );
+}
+
+export function MatrixIcon({
+  className = "w-5 h-5",
+  stroke = "currentColor",
+  strokeWidth = 1.8,
+  strokeLinecap = "round",
+  strokeLinejoin = "round",
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      viewBox="0 0 24 24"
+      className={className}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap={strokeLinecap}
+      strokeLinejoin={strokeLinejoin}
+      {...props}
+    >
+      <rect x="3" y="3" width="8" height="8" rx="2" />
+      <rect x="13" y="3" width="8" height="8" rx="2" />
+      <rect x="3" y="13" width="8" height="8" rx="2" />
+      <rect x="13" y="13" width="8" height="8" rx="2" />
+    </svg>
+  );
+}
+
+export function ListIcon({
+  className = "w-5 h-5",
+  stroke = "currentColor",
+  strokeWidth = 1.8,
+  strokeLinecap = "round",
+  strokeLinejoin = "round",
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      viewBox="0 0 24 24"
+      className={className}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap={strokeLinecap}
+      strokeLinejoin={strokeLinejoin}
+      {...props}
+    >
+      <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+    </svg>
+  );
+}
+
+export function PlayIcon({
+  className = "w-5 h-5",
+  fill = "currentColor",
+  stroke = "currentColor",
+  strokeWidth = 1.8,
+  strokeLinecap = "round",
+  strokeLinejoin = "round",
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      className={className}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap={strokeLinecap}
+      strokeLinejoin={strokeLinejoin}
+      {...props}
+    >
+      <polygon points="6 4 20 12 6 20 6 4" />
+    </svg>
+  );
+}
+
+export function PauseIcon({
+  className = "w-5 h-5",
+  fill = "currentColor",
+  stroke = "currentColor",
+  strokeWidth = 1.8,
+  strokeLinecap = "round",
+  strokeLinejoin = "round",
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      className={className}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap={strokeLinecap}
+      strokeLinejoin={strokeLinejoin}
+      {...props}
+    >
+      <rect x="6" y="4" width="4" height="16" rx="1" />
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+    </svg>
+  );
+}
+
+export function TimerIcon({
+  className = "w-5 h-5",
+  stroke = "currentColor",
+  strokeWidth = 1.8,
+  strokeLinecap = "round",
+  strokeLinejoin = "round",
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      viewBox="0 0 24 24"
+      className={className}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap={strokeLinecap}
+      strokeLinejoin={strokeLinejoin}
+      {...props}
+    >
+      <line x1="10" y1="2" x2="14" y2="2" />
+      <line x1="12" y1="14" x2="15" y2="11" />
+      <circle cx="12" cy="14" r="8" />
+    </svg>
+  );
+}
+
+export function MailReplyIcon({
+  className = "w-5 h-5",
+  stroke = "currentColor",
+  strokeWidth = 1.8,
+  strokeLinecap = "round",
+  strokeLinejoin = "round",
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      viewBox="0 0 24 24"
+      className={className}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap={strokeLinecap}
+      strokeLinejoin={strokeLinejoin}
+      {...props}
+    >
+      <polyline points="9 17 4 12 9 7" />
+      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+    </svg>
+  );
+}
+
+export function CopyIcon({
+  className = "w-5 h-5",
+  stroke = "currentColor",
+  strokeWidth = 1.8,
+  strokeLinecap = "round",
+  strokeLinejoin = "round",
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      viewBox="0 0 24 24"
+      className={className}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap={strokeLinecap}
+      strokeLinejoin={strokeLinejoin}
+      {...props}
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
 /* ─── Aliases for Developer Convenience ─── */
 export { CloseIcon as XIcon, PencilIcon as EditIcon };

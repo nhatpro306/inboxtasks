@@ -7,6 +7,7 @@ import { Toast } from "../components/Toast.js";
 import { isOverdue, isToday, hasTime } from "../lib/format.js";
 import { useAppEventListener, appEvents } from "../lib/events.js";
 import { parseSubtasks, serializeSubtasks, SubtaskItem } from "../lib/subtask.js";
+import { PomodoroTimer } from "../components/PomodoroTimer.js";
 import {
   CheckCircleIcon,
   ClockIcon,
@@ -357,6 +358,7 @@ export function Today() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [focusingTask, setFocusingTask] = useState<Task | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
@@ -486,6 +488,7 @@ export function Today() {
                 task={task}
                 onToggleDone={handleToggleDone}
                 onClick={setEditingTask}
+                onStartFocus={(t) => setFocusingTask(t)}
               />
             ))}
           </div>
@@ -520,6 +523,7 @@ export function Today() {
                 task={task}
                 onToggleDone={handleToggleDone}
                 onClick={setEditingTask}
+                onStartFocus={(t) => setFocusingTask(t)}
               />
             ))}
           </div>
@@ -554,6 +558,7 @@ export function Today() {
                 task={task}
                 onToggleDone={handleToggleDone}
                 onClick={setEditingTask}
+                onStartFocus={(t) => setFocusingTask(t)}
               />
             ))}
           </div>
@@ -586,6 +591,7 @@ export function Today() {
                 task={task}
                 onToggleDone={handleToggleDone}
                 onClick={setEditingTask}
+                onStartFocus={(t) => setFocusingTask(t)}
               />
             ))}
           </div>
@@ -608,6 +614,7 @@ export function Today() {
                 task={task}
                 onToggleDone={handleToggleDone}
                 onClick={setEditingTask}
+                onStartFocus={(t) => setFocusingTask(t)}
               />
             ))}
           </div>
@@ -623,6 +630,17 @@ export function Today() {
           onDeleted={handleTaskDeleted}
         />
       )}
+
+      {/* Pomodoro Timer Modal */}
+      <PomodoroTimer
+        task={focusingTask}
+        isOpen={!!focusingTask}
+        onClose={() => setFocusingTask(null)}
+        onCompleteTask={async (t) => {
+          await handleToggleDone(t);
+          setFocusingTask(null);
+        }}
+      />
 
       {/* Toast */}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}

@@ -4,6 +4,7 @@ import { api, Task } from "../lib/api.js";
 import { useAppEventListener, appEvents } from "../lib/events.js";
 import { Toast } from "./Toast.js";
 import { serializeSubtasks, parseSubtasks, SubtaskItem } from "../lib/subtask.js";
+import { parseNaturalLanguageTask } from "../lib/nlp.js";
 import { hasTime } from "../lib/format.js";
 import { CommandPalette } from "./CommandPalette.js";
 import {
@@ -19,6 +20,7 @@ import {
   SearchIcon,
   RefreshIcon,
   SpinnerIcon,
+  SparklesIcon,
 } from "./Icons.js";
 
 interface CreateTaskModalProps {
@@ -33,7 +35,25 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
+  const [priorityTouched, setPriorityTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const nlp = parseNaturalLanguageTask(title);
+  const hasNlpDetections = Boolean(
+    nlp.dueDate || nlp.dueTime || nlp.tags.length > 0 || nlp.priority !== "medium"
+  );
+
+  function handleApplyNlp() {
+    if (nlp.dueDate) setDueDate(nlp.dueDate);
+    if (nlp.dueTime) setDueTime(nlp.dueTime);
+    if (nlp.priority !== "medium") {
+      setPriority(nlp.priority);
+      setPriorityTouched(true);
+    }
+    if (nlp.cleanTitle && nlp.cleanTitle !== title) {
+      setTitle(nlp.cleanTitle);
+    }
+  }
 
   function handleAddSubtask() {
     const trimmed = newSubtaskInput.trim();
@@ -58,13 +78,20 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
     if (!title.trim()) return;
     setSaving(true);
     try {
+      const effectiveDueDate = dueDate || nlp.dueDate || null;
+      const effectiveDueTime = dueTime || nlp.dueTime || "";
+      const effectivePriority =
+        !priorityTouched && nlp.priority !== "medium" ? nlp.priority : priority;
+      const effectiveTitle =
+        hasNlpDetections && nlp.cleanTitle.trim() ? nlp.cleanTitle.trim() : title.trim();
+
       let due_date: string | null = null;
-      if (dueDate) {
-        if (dueTime) {
-          const d = new Date(`${dueDate}T${dueTime}:00`);
-          due_date = isNaN(d.getTime()) ? dueDate : d.toISOString();
+      if (effectiveDueDate) {
+        if (effectiveDueTime) {
+          const d = new Date(`${effectiveDueDate}T${effectiveDueTime}:00`);
+          due_date = isNaN(d.getTime()) ? effectiveDueDate : d.toISOString();
         } else {
-          due_date = dueDate;
+          due_date = effectiveDueDate;
         }
       }
 
@@ -77,9 +104,9 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
       }
 
       await api.createTask({
-        title: title.trim(),
+        title: effectiveTitle,
         due_date,
-        priority,
+        priority: effectivePriority,
         description,
       });
       onCreated();
@@ -117,10 +144,52 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
               id="new-task-title-input"
               autoFocus
               className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
-              placeholder="Task title"
+              placeholder="e.g. Finish quarterly report tomorrow at 3pm !high #work"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+            {hasNlpDetections && (
+              <div className="mt-2 p-2 rounded-btn bg-accent-tint/40 border border-accent/25 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                  <SparklesIcon className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                  <span className="font-medium text-accent">✨ Detected:</span>
+                  {(nlp.dueDate || nlp.dueTime) && (
+                    <span className="bg-card border border-border/70 text-text font-medium px-1.5 py-0.5 rounded text-[11px]">
+                      {nlp.dueDate && nlp.dueTime
+                        ? `${nlp.dueDate} ${nlp.dueTime}`
+                        : nlp.dueDate || nlp.dueTime}
+                    </span>
+                  )}
+                  {nlp.priority !== "medium" && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[11px] font-semibold capitalize border ${
+                        nlp.priority === "high"
+                          ? "bg-danger/10 text-danger border-danger/30"
+                          : "bg-card text-sub border-border/70"
+                      }`}
+                    >
+                      {nlp.priority} priority
+                    </span>
+                  )}
+                  {nlp.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="bg-card border border-border/70 text-sub px-1.5 py-0.5 rounded text-[11px]"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApplyNlp}
+                  className="text-[11px] font-semibold text-accent hover:text-accent/80 px-2 py-0.5 rounded bg-accent/10 hover:bg-accent/20 transition-colors flex-shrink-0 cursor-pointer"
+                  aria-label="Apply detected fields"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -156,7 +225,10 @@ function CreateTaskModal({ onClose, onCreated }: CreateTaskModalProps) {
               id="new-task-priority"
               className="text-sm border border-border rounded-btn px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-accent/30"
               value={priority}
-              onChange={(e) => setPriority(e.target.value as "low" | "medium" | "high")}
+              onChange={(e) => {
+                setPriority(e.target.value as "low" | "medium" | "high");
+                setPriorityTouched(true);
+              }}
             >
               <option value="low">Low priority</option>
               <option value="medium">Medium priority</option>
