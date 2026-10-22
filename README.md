@@ -1,12 +1,12 @@
 # InboxTasks
 
-Single-user, installable PWA that scans your email over IMAP, uses a local AI model to turn action-bearing emails into **suggested** to-do items, lets you review/edit them in a list and a calendar (two-way Google Calendar sync), and includes a chatbot that reads and edits your tasks. Privacy posture: single user; credentials and API keys never reach the browser and are encrypted at rest. Email content is treated as untrusted input throughout.
+Single-user, installable PWA that scans your email over IMAP, uses Ollama or Gemini to turn action-bearing emails into **suggested** to-do items, lets you review/edit them in a list and a calendar (two-way Google Calendar sync), and includes a chatbot that reads and edits your tasks. The app is designed for one user. Email extraction and proposed chat actions require review; email content is treated as untrusted input. This single-user design does not provide a multi-user login boundary.
 
 ## Architecture (npm-workspaces monorepo)
 
 - **apps/web** — React + Vite + TypeScript + Tailwind PWA (installable, offline). Today / All / Review / Calendar (FullCalendar) / Chat / Settings.
 - **apps/api** — Fastify REST API (helmet, zod, CORS).
-- **apps/worker** — node-cron scheduler; runs the ingest+extract+reminder cycle hourly.
+- **apps/worker** — node-cron scheduler; runs the ingest/extract/reminder cycle on startup and on its configured cron schedule.
 - **packages/pipeline** — IMAP fetch + MIME parse + sanitize + AI extraction + web-push reminders (shared by worker and `/api/scan-now`).
 - **packages/llm** — `LLMProvider` abstraction: Ollama (qwen3:8b) + Gemini (gemini-2.5-flash, REST) with auto failover; extraction prompt, validation, chat action protocol.
 - **packages/db** — Prisma client, AES-256-GCM credential encryption, single-user bootstrap, audit-log helper.
@@ -15,12 +15,14 @@ Single-user, installable PWA that scans your email over IMAP, uses a local AI mo
 
 ## Prerequisites
 
-- Node >= 20, Docker Desktop
-- [Ollama](https://ollama.com): `ollama pull qwen3:8b`
+- Node.js 20+ and npm (the repo tracks `package-lock.json`), Docker Desktop
+- For local AI: [Ollama](https://ollama.com) with the configured model (`ollama pull qwen3:8b` for the default). Gemini requires a server-side API key instead.
 
 ## Setup
 
 ```bash
+git clone https://github.com/nhatpro306/inboxtasks.git
+cd inboxtasks
 cp .env.example .env
 # 1) APP_MASTER_KEY (32 bytes hex):
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -32,12 +34,15 @@ npx web-push generate-vapid-keys
 #    http://localhost:3001/api/calendar/callback
 
 docker compose up -d postgres
-npm install
+npm ci
+npm run db:generate
 npm run db:migrate        # creates tables (Postgres must be up)
 npm run dev               # web :5173 · api :3001 · worker
 ```
 
-Open http://localhost:5173 (installable PWA). API health: http://localhost:3001/health.
+Open [localhost:5173](http://localhost:5173) (PWA). API health: [localhost:3001/health](http://localhost:3001/health). On PowerShell, use `Copy-Item .env.example .env` in place of `cp` if preferred.
+
+Set a unique `APP_MASTER_KEY` before storing real inbox credentials; the current implementation falls back to a built-in key when this variable is missing, and startup logs a warning rather than enforcing a fail-fast boundary. Do not treat a successful startup as proof of secure configuration.
 
 **Gmail:** enable 2-factor auth and use an **app password** (not your account password) when adding the inbox in Settings.
 
@@ -63,14 +68,16 @@ Open http://localhost:5173 (installable PWA). API health: http://localhost:3001/
 - IMAP credentials & Google OAuth tokens **encrypted at rest** (AES-256-GCM, key from `APP_MASTER_KEY`); never returned by any endpoint, never sent to the browser.
 - Gemini API key stored server-side, **write-only**, returned **masked**.
 - All AI I/O is **sanitized + delimited (`<untrusted_email>`) + schema-validated** (zod). The model never takes actions: AI-created tasks are **`suggested`** until you accept them; the chatbot only **proposes** actions and the server executes **only after explicit UI confirmation**, with a **whitelist** (`create_task` / `update_task` / `complete_task`) and a server-side ownership re-check.
-- zod validation on every endpoint; Prisma parameterized queries; secrets redacted from logs; generic 500s (no stack leak); fail-fast if `APP_MASTER_KEY` is missing/invalid.
+- Request schemas, Prisma queries and log redaction are implemented in the API. Configure and preserve `APP_MASTER_KEY` for encrypted stored credentials; the current startup warning/fallback behavior is described above.
 - helmet headers (CSP, HSTS, X-Content-Type-Options, frame-ancestors, Referrer-Policy, Permissions-Policy). IMAP over TLS:993.
 - Destructive actions: soft-delete + explicit confirmation + audit log.
 
-## Sprint status
+## Recorded implementation milestones
+
+These milestones describe the existing implementation. They are not a fresh test report; use the commands above to verify your checkout and service configuration.
 
 - **0 Foundations** ✅ monorepo, Postgres + Prisma, Fastify `/health`, installable PWA shell
-- **1 Email ingestion** ✅ IMAP TLS:993, encrypted creds, sanitize, dedup by message_id, last_seen_uid high-water mark, hourly cron
+- **1 Email ingestion** ✅ IMAP TLS:993, encrypted creds, sanitize, dedup by message_id, last_seen_uid high-water mark, scheduled polling
 - **2 AI extraction** ✅ Ollama + Gemini failover, structural-separation prompt, validation, suggested tasks
 - **3 Task UX + calendar** ✅ CRUD, Today/All/Review, FullCalendar, two-way Google Calendar sync, web-push reminders
 - **4 Chatbot** ✅ retrieval + confirm-gated action protocol
@@ -78,7 +85,7 @@ Open http://localhost:5173 (installable PWA). API health: http://localhost:3001/
 
 ## Deploy to Vercel (full serverless, Gemini-only)
 
-Ollama and the local worker process do not run in a serverless environment. On Vercel, the AI pipeline uses **Gemini** exclusively and the hourly scan is handled by a **Vercel Cron** job (`/api/cron`, runs every hour). The Fastify app is served as a single catch-all serverless function (`/api/*`).
+Ollama and the local worker process do not run in a serverless environment. On Vercel, the AI pipeline uses **Gemini** exclusively and scheduled scanning is handled by a **Vercel Cron** job (`/api/cron`). The Fastify app is served as a single catch-all serverless function (`/api/*`). The committed `vercel.json` schedules `/api/cron` **daily at 00:00 UTC (09:00 JST)**, and `api/cron.ts` requires `CRON_SECRET`. The local worker has a separate schedule; changing its interval does not change Vercel Cron.
 
 ### Steps
 
@@ -100,6 +107,7 @@ Ollama and the local worker process do not run in a serverless environment. On V
    | `GOOGLE_REDIRECT_URI` | `https://<your-vercel-domain>/api/calendar/callback` |
    | `WEB_ORIGIN` | `https://<your-vercel-domain>` |
    | `USER_EMAIL` | Your email address (single-user bootstrap) |
+   | `CRON_SECRET` | Server-side bearer secret checked by `api/cron.ts` |
 
    `VITE_API_URL` can be left unset — the web build defaults to same-origin (`""`) in production so `/api/...` calls resolve on the Vercel domain automatically.
 
@@ -111,11 +119,11 @@ Ollama and the local worker process do not run in a serverless environment. On V
 
    Or use a one-off Vercel function / CI step. This only needs to run when the schema changes.
 
-5. **Deploy** — Vercel runs the build command (`npm run db:generate && npm run build:packages && npm run build --workspace apps/web`), serves the SPA from `apps/web/dist`, and routes `/api/*` to the serverless function.
+5. **Deploy** — Vercel runs the build command (`npm run db:generate && npm run build:packages && npm run build:api && npm run build --workspace apps/web`), serves the SPA from `apps/web/dist`, and routes `/api/*` to the serverless function.
 
 ### How it works in production
 
-- **`/api/cron`** — Vercel Cron calls this endpoint every hour (schedule: `0 * * * *`). It runs `runCycle()`: IMAP ingest → AI extraction → reminder push.
+- **`/api/cron`** — Vercel Cron calls this endpoint daily (committed schedule: `0 0 * * *`). The handler rejects requests without the configured bearer secret. It runs `runCycle()`: IMAP ingest → AI extraction → reminder push.
 - **`/api/*`** — All other API calls (including `/health`) are handled by the Fastify catch-all function. The Fastify instance is cached across warm invocations.
 - **60-second function limit** — large email backlogs process across multiple cron runs (50 emails per cycle by default). This is by design.
 - **Ollama is not used** — set `AI_PROVIDER_PREF=gemini`; the `local` provider and Ollama URL are ignored.
@@ -123,5 +131,7 @@ Ollama and the local worker process do not run in a serverless environment. On V
 ## Known follow-ups
 
 - PWA icons (`apps/web/public/pwa-*.png`) are 1×1 placeholders — replace with real artwork.
-- Remaining `npm audit` advisories are transitive / dev-only (details in the Sprint 5a commit); schedule the `imapflow`/`mailparser` minor bumps when convenient.
+- Re-run a dependency audit for the current lockfile; older audit notes are not evidence that the current dependency tree is clean.
+- The API bootstraps a single user and does not implement an interactive login/session boundary. Restrict access to a trusted user/environment before connecting real inboxes; CORS alone is not authentication.
 - HTTPS termination is a deployment concern (run behind a TLS-terminating proxy).
+- Confirm `POLL_INTERVAL_MINUTES` against `apps/worker/src/index.ts`: the current cron minute step is clamped to 1–59, so the default value 60 does not produce an exact hourly interval.
